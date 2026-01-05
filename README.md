@@ -37,7 +37,7 @@ bridge_name string # The actual name is exposed to the bridge; mostly used to ID
 
 ## Notes
 ### Postgres issues
-- [Cannot connect to Postgres database](https://github.com/matrix-org/synapse/issues/2780#issuecomment-855285811))
+- [Cannot connect to Postgres database](https://github.com/matrix-org/synapse/issues/2780#issuecomment-855285811)
 
 ### Snaypse
 ```nginx
