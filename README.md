@@ -4,6 +4,8 @@
 
 - Installations
 
+- Bridge setups
+
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
 
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
@@ -21,6 +23,17 @@ MacOS (M-series)
 brew install libolm
 export LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
 export CPATH="/opt/homebrew/include:$CPATH"
+```
+
+## Bridge setups
+
+Configure self signing in bridge to avoid error:
+> failed to decrypt megolm event: no session with given ID found
+
+bridge.conf file:
+
+```yaml
+encryption > self_sign = true
 ```
  
 ## Schemas
