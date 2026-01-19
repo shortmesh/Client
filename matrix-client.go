@@ -24,7 +24,8 @@ type ClientDB struct {
 }
 
 type MatrixClient struct {
-	Client *mautrix.Client
+	Client       *mautrix.Client
+	CryptoHelper *cryptohelper.CryptoHelper
 }
 
 // type IncomingMessage struct {
@@ -137,9 +138,7 @@ func (m *MatrixClient) Login(password string) (string, error) {
 		return "", err
 	}
 	m.Client.AccessToken = resp.AccessToken
-
-	fmt.Printf("[+] DeviceID: %s\n", resp.DeviceID)
-	fmt.Printf("[+] AccessToken: %s\n", resp.AccessToken)
+	m.Client.DeviceID = resp.DeviceID
 
 	return resp.AccessToken, nil
 }
@@ -183,35 +182,13 @@ func (m *MatrixClient) Create(username string, password string) (string, error) 
 	return resp.AccessToken, nil
 }
 
-func verifyWithRecoveryKey(machine *crypto.OlmMachine, recoveryKey string) (err error) {
-	ctx := context.Background()
-
-	keyId, keyData, err := machine.SSSS.GetDefaultKeyData(ctx)
-	if err != nil {
-		return
-	}
-	key, err := keyData.VerifyRecoveryKey(keyId, recoveryKey)
-	if err != nil {
-		return
-	}
-	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
-	if err != nil {
-		return
-	}
-
-	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
-	if err != nil {
-		return
-	}
-	err = machine.SignOwnMasterKey(ctx)
-
-	return
-}
-
-func setupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) {
+func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) {
 	// remember to use a secure key for the pickle key in production
 
 	conf, err := cfg.getConf()
+	if err != nil {
+		panic(err)
+	}
 	pickleKeyString := conf.PickleKey
 	pickleKey := []byte(pickleKeyString)
 
@@ -236,18 +213,8 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 	syncer := mautrix.NewDefaultSyncer()
 	m.Client.Syncer = syncer
 
-	cryptoHelper, err := setupCryptoHelper(m.Client)
-
-	if err != nil {
-		panic(err)
-	}
-
-	m.Client.Crypto = cryptoHelper
-
-	fmt.Printf("[+] DeviceID: %s\n", m.Client.DeviceID)
-
 	syncer.OnEventType(event.EventEncrypted, func(ctx context.Context, evt *event.Event) {
-		evt, err = m.Client.Crypto.Decrypt(ctx, evt)
+		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
 		if err != nil {
 			panic(err)
 		}
@@ -278,14 +245,11 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 	<-readyChan
 	log.Println("Sync received")
 
-	if m.Client.DeviceID != cryptoHelper.Machine().OwnIdentity().DeviceID {
-		panic("Mismatch in device IDs")
-	}
-
-	err = verifyWithRecoveryKey(cryptoHelper.Machine(), recoveryKey)
+	err := verifyRecoveryKey(m.CryptoHelper.Machine(), recoveryKey)
 	if err != nil {
 		panic(err)
 	}
+
 	return nil
 }
 
@@ -439,3 +403,80 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 
 // 	return nil
 // }
+
+func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string {
+	ctx := context.Background()
+	machine := cryptoHelper.Machine()
+
+	err := machine.SSSS.SetDefaultKeyID(ctx, "")
+	if err != nil {
+		fmt.Printf("Warning: couldn't clear default key ID: %v\n", err)
+	}
+
+	key, err := machine.SSSS.GenerateAndUploadKey(ctx, "f. society.1")
+	if err != nil {
+		panic(err)
+	}
+
+	err = machine.SSSS.SetDefaultKeyID(ctx, key.ID)
+	if err != nil {
+		panic(err)
+	}
+
+	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
+	if err != nil {
+		// If it still fails, the account data on the server is likely corrupted.
+		// You may need to manually reset the account's cross-signing via a client like Element.
+		panic(err)
+	}
+
+	return key.RecoveryKey()
+}
+
+// func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string {
+// 	fmt.Println("[+] Generating recovery key...")
+// 	ctx := context.Background()
+
+// 	machine := cryptoHelper.Machine()
+
+// 	passphrase := "f. society.1"
+// 	key, err := machine.SSSS.GenerateAndUploadKey(ctx, passphrase)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	return key.RecoveryKey()
+// }
+
+func verifyRecoveryKey(
+	machine *crypto.OlmMachine,
+	recoveryKey string,
+) error {
+	ctx := context.Background()
+	keyId, keyData, err := machine.SSSS.GetDefaultKeyData(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	key, err := keyData.VerifyRecoveryKey(keyId, recoveryKey)
+	if err != nil {
+		panic(err)
+	}
+
+	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+
+	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
+	if err != nil {
+		panic(err)
+	}
+
+	err = machine.SignOwnMasterKey(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}

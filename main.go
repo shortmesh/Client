@@ -27,6 +27,10 @@ func main() {
 	// ks.Init()
 	conf, err := cfg.getConf()
 
+	if err != nil {
+		panic(err)
+	}
+
 	user := User{
 		Username:         conf.User.Username,
 		AccessToken:      conf.User.AccessToken,
@@ -40,26 +44,49 @@ func main() {
 		id.NewUserID(user.Username, user.HomeServerDomain),
 		user.AccessToken,
 	)
-	client.DeviceID = id.DeviceID(conf.User.DeviceId)
-
-	mc := MatrixClient{
-		Client: client,
-	}
-
-	if len(os.Args) > 2 && os.Args[2] == "--login" {
-		fmt.Println("[+] Login commencing...")
-		password := conf.User.Password
-
-		if _, err := mc.Login(password); err != nil {
-			panic(err)
-		}
-
-		return
-	}
-
 	if err != nil {
 		panic(err)
 	}
+
+	if len(os.Args) > 2 {
+		switch os.Args[2] {
+		case "--login":
+			fmt.Println("[+] Login commencing...")
+			password := conf.User.Password
+
+			if _, err := (&MatrixClient{
+				Client: client,
+			}).Login(password); err != nil {
+				panic(err)
+			}
+
+			fmt.Printf("[+] DeviceID: %s\n", client.DeviceID)
+			fmt.Printf("[+] AccessToken: %s\n", client.AccessToken)
+
+			cryptoHelper, err := SetupCryptoHelper(client)
+			if err != nil {
+				panic(err)
+			}
+
+			recoverykey := GenerateAndUploadClientKeys(cryptoHelper)
+			fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
+		}
+		return
+	}
+
+	client.DeviceID = id.DeviceID(conf.User.DeviceId)
+	cryptoHelper, err := SetupCryptoHelper(client)
+	if err != nil {
+		panic(err)
+	}
+	mc := MatrixClient{
+		Client:       client,
+		CryptoHelper: cryptoHelper,
+	}
+
+	mc.Client.Crypto = cryptoHelper
+
+	fmt.Printf("[+] DeviceID: %s\n", mc.Client.DeviceID)
 
 	go SyncUser(&mc, user)
 

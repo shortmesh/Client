@@ -9,12 +9,6 @@ user:
   access_token: ""
   recovery_key: ""
   device_id: ""
-websocket:
-  port: 8090
-  host: "0.0.0.0"
-  tls:
-    crt: ""
-    key: ""
 server:
   port: 8080
   host: "0.0.0.0"
