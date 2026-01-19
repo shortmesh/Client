@@ -28,100 +28,6 @@ type MatrixClient struct {
 	CryptoHelper *cryptohelper.CryptoHelper
 }
 
-// type IncomingMessage struct {
-// 	RoomID  id.RoomID
-// 	Sender  id.UserID
-// 	Content event.Content
-// }
-
-/*
-This function adds the user to the database and joins the bridge rooms
-*/
-// func (m *MatrixClient) ProcessActiveSessions(
-// 	password string,
-// ) error {
-// 	log.Println("Processing active sessions for user:", m.Client.UserID.Localpart())
-// 	var clientDB ClientDB = ClientDB{
-// 		username: m.Client.UserID.Localpart(),
-// 		filepath: "db/" + m.Client.UserID.Localpart() + ".db",
-// 	}
-// 	clientDB.Init()
-
-// 	if m.Client.AccessToken != "" && m.Client.UserID != "" && password != "" {
-// 		err := ks.CreateUser(m.Client.UserID.Localpart(), m.Client.AccessToken)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		err = clientDB.Store(m.Client.AccessToken, password)
-
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	for _, entry := range cfg.Bridges {
-// 		for name, config := range entry {
-// 			bridge := Bridges{
-// 				Name:    name,
-// 				Client:  m.Client,
-// 				BotName: config.BotName,
-// 			}
-
-// 			err := bridge.JoinManagementRooms()
-// 			if err != nil {
-// 				return err
-// 			}
-// 		}
-// 	}
-
-// 	return nil
-// }
-
-// func (m *MatrixClient) LoadActiveSessionsByAccessToken(accessToken string) (string, error) {
-// 	log.Println("Loading active sessions: ", m.Client.UserID.Localpart(), accessToken)
-
-// 	var clientDB ClientDB = ClientDB{
-// 		username: m.Client.UserID.Localpart(),
-// 		filepath: "db/" + m.Client.UserID.Localpart() + ".db",
-// 	}
-// 	clientDB.Init()
-// 	exists, err := clientDB.AuthenticateAccessToken(m.Client.UserID.Localpart(), accessToken)
-
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	if !exists {
-// 		return "", fmt.Errorf("access token does not exist")
-// 	}
-
-// 	return accessToken, nil
-// }
-
-// func (m *MatrixClient) LoadActiveSessions(
-// 	password string,
-// ) (string, error) {
-// 	log.Println("Loading active sessions: ", m.Client.UserID.Localpart(), password)
-
-// 	var clientDB ClientDB = ClientDB{
-// 		username: m.Client.UserID.Localpart(),
-// 		filepath: "db/" + m.Client.UserID.Localpart() + ".db",
-// 	}
-// 	clientDB.Init()
-// 	exists, err := clientDB.Authenticate(m.Client.UserID.Localpart(), password)
-
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	if !exists {
-// 		return "", nil
-// 	}
-
-// 	return clientDB.Fetch()
-// }
-
 func (m *MatrixClient) Login(password string) (string, error) {
 	identifier := mautrix.UserIdentifier{
 		Type: mautrix.IdentifierTypeUser,
@@ -212,18 +118,30 @@ func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) 
 func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 	syncer := mautrix.NewDefaultSyncer()
 	m.Client.Syncer = syncer
+	machine := m.CryptoHelper.Machine()
 
 	syncer.OnEventType(event.EventEncrypted, func(ctx context.Context, evt *event.Event) {
 		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 		ch <- evt
 	})
 
-	// syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
-	// 	fmt.Printf("%s\n", evt.Type)
-	// })
+	// Handle incoming room key events
+	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
+		// Let the crypto machine handle all to-device encryption events
+		if evt.Type.Class == event.ToDeviceEventType {
+			machine.HandleToDeviceEvent(ctx, evt)
+			log.Printf("Handled to device...")
+		} else {
+			(&Rooms{
+				Client: m.Client,
+				ID:     evt.RoomID,
+			}).GetInvites(evt)
+		}
+		log.Printf("%s\n", evt.Type)
+	})
 
 	readyChan := make(chan bool)
 	var once sync.Once
@@ -245,208 +163,66 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 	<-readyChan
 	log.Println("Sync received")
 
-	err := verifyRecoveryKey(m.CryptoHelper.Machine(), recoveryKey)
-	if err != nil {
-		panic(err)
-	}
+	// err := verifyRecoveryKey(m.CryptoHelper.Machine(), recoveryKey)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	return nil
 }
-
-// func (m *MatrixClient) SyncAllClients() error {
-// 	log.Println("Syncing all clients")
-// 	var wg sync.WaitGroup
-
-// 	for {
-// 		users, err := ks.FetchAllUsers()
-
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		for _, user := range users {
-// 			if _, ok := syncingUsers[user.Username]; ok && len(syncingUsers[user.Username]) > 0 {
-// 				continue
-// 			} else {
-// 				syncingUsers[user.Username] = []string{}
-// 			}
-
-// 			wg.Add(1)
-
-// 			go func(user Users) {
-// 				err := m.syncClient(user) //blocking
-// 				if err != nil {
-// 					log.Println("Error syncing client:", err)
-// 					return
-// 				}
-
-// 			}(user)
-// 		}
-
-// 		time.Sleep(3 * time.Second)
-// 	}
-// }
-
-// func (m *MatrixClient) syncClient(user Users) error {
-// 	homeServer := cfg.HomeServer
-// 	client, err := mautrix.NewClient(
-// 		homeServer,
-// 		id.NewUserID(user.Username, cfg.HomeServerDomain),
-// 		user.AccessToken,
-// 	)
-// 	mc := MatrixClient{
-// 		Client: client,
-// 	}
-// 	if err != nil {
-// 		log.Println("Error creating bridge for user:", err, user.Username)
-// 		return err
-// 	}
-
-// 	clientDb := ClientDB{
-// 		username: user.Username,
-// 		filepath: "db/" + user.Username + ".db",
-// 	}
-
-// 	clientDb.Init()
-// 	bridges, err := clientDb.FetchBridgeRooms(user.Username)
-// 	if err != nil {
-// 		log.Println("Error fetching bridge rooms for user:", err, user.Username)
-// 		return err
-// 	}
-
-// 	ch := make(chan *event.Event)
-// 	go func() {
-// 		for {
-// 			evt := <-ch
-// 			go m.processIncomingEvents(evt)
-// 		}
-// 	}()
-
-// 	// insert bridge names into syncingUsers if not already present
-// 	go func() {
-// 		for _, bridge := range bridges {
-// 			bridge.Client = client
-// 			// bridge.Client.StateStore = mautrix.NewMemoryStateStore()
-// 			if _, ok := syncingUsers[user.Username]; !ok {
-// 				syncingUsers[user.Username] = []string{}
-// 			}
-// 			syncingUsers[user.Username] = append(syncingUsers[user.Username], bridge.Name)
-// 			if _, ok := ClientDevices[user.Username]; !ok {
-// 				ClientDevices[user.Username] = make(map[string][]string)
-// 			} else if _, ok := ClientDevices[user.Username][bridge.Name]; !ok {
-// 				ClientDevices[user.Username][bridge.Name] = make([]string, 0)
-// 			}
-
-// 			devices, err := bridge.ListDevices()
-// 			log.Println("Devices for bridge:", bridge.Name, devices)
-
-// 			if err != nil {
-// 				log.Println("Error listing devices for user:", err, user.Username)
-// 				continue
-// 			}
-// 			ClientDevices[user.Username][bridge.Name] = devices
-
-// 			go func(bridge *Bridges) {
-// 				bridgeCfg, ok := cfg.GetBridgeConfig(bridge.Name)
-// 				if !ok {
-// 					log.Println("Bridge config not found for:", bridge.Name)
-// 					return
-// 				}
-// 				bridge.ProcessIncomingLoginDaemon(bridgeCfg)
-// 			}(bridge)
-
-// 			go func(bridge *Bridges) {
-// 				bridge.CreateContactRooms()
-// 				log.Println("Joined member rooms for bridge:", bridge.Name)
-// 				// wg.Done()
-// 			}(bridge)
-
-// 			go func(bridge *Bridges) {
-// 				bridge.GetRoomInvitesDaemon()
-// 			}(bridge)
-// 		}
-// 	}()
-
-// 	err = mc.Sync(ch)
-
-// 	if err != nil {
-// 		log.Println("Sync error for user:", err, client.UserID.String())
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
-// func (m *MatrixClient) processIncomingEvents(evt *event.Event) error {
-// 	for _, subscriber := range EventSubscribers {
-// 		if len(subscriber.ExcludeMsgTypes) > 0 {
-// 			for _, excludeMsgType := range subscriber.ExcludeMsgTypes {
-// 				if excludeMsgType == evt.Content.AsMessage().MsgType {
-// 					continue
-// 				}
-// 			}
-// 		}
-
-// 		if subscriber.MsgType == nil || *subscriber.MsgType == evt.Content.AsMessage().MsgType {
-// 			if subscriber.RoomID != "" && subscriber.RoomID != evt.RoomID {
-// 				continue
-// 			}
-
-// 			if subscriber.Since != nil && evt.Timestamp <= subscriber.Since.UnixMilli() {
-// 				continue
-// 			}
-
-// 			subscriber.Callback(evt)
-// 		}
-
-// 	}
-
-// 	return nil
-// }
 
 func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string {
 	ctx := context.Background()
 	machine := cryptoHelper.Machine()
 
-	err := machine.SSSS.SetDefaultKeyID(ctx, "")
-	if err != nil {
-		fmt.Printf("Warning: couldn't clear default key ID: %v\n", err)
-	}
-
-	key, err := machine.SSSS.GenerateAndUploadKey(ctx, "f. society.1")
+	passphrase := "f.society"
+	err := machine.ShareKeys(ctx, 1)
 	if err != nil {
 		panic(err)
 	}
+
+	key, err := machine.SSSS.GenerateAndUploadKey(ctx, passphrase)
+	if err != nil {
+		panic(err)
+	}
+
+	// conf, err := cfg.getConf()
+	log.Println("[+] Verifying machine access token: ", cryptoHelper.Machine().Client.AccessToken)
+	uiaCallback := func(flows *mautrix.RespUserInteractive) interface{} {
+		log.Printf("UIA flows available: %+v", flows)
+
+		// Try using the access token directly
+		return map[string]interface{}{
+			"type":    "m.login.token",
+			"session": flows.Session,
+			"token":   machine.Client.AccessToken,
+		}
+	}
+	recoveryKey, _, err := machine.GenerateAndUploadCrossSigningKeys(ctx, uiaCallback, passphrase)
+	if err != nil {
+		// If it still fails, the account data on the server is likely corrupted.
+		// You may need to manually reset the account's cross-signing via a client like Element.
+		panic(err)
+	}
+	log.Println("[+] Recovery key: ", recoveryKey)
 
 	err = machine.SSSS.SetDefaultKeyID(ctx, key.ID)
 	if err != nil {
 		panic(err)
 	}
 
-	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
+	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
 	if err != nil {
-		// If it still fails, the account data on the server is likely corrupted.
-		// You may need to manually reset the account's cross-signing via a client like Element.
+		panic(err)
+	}
+
+	err = machine.SignOwnMasterKey(ctx)
+	if err != nil {
 		panic(err)
 	}
 
 	return key.RecoveryKey()
 }
-
-// func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string {
-// 	fmt.Println("[+] Generating recovery key...")
-// 	ctx := context.Background()
-
-// 	machine := cryptoHelper.Machine()
-
-// 	passphrase := "f. society.1"
-// 	key, err := machine.SSSS.GenerateAndUploadKey(ctx, passphrase)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	return key.RecoveryKey()
-// }
 
 func verifyRecoveryKey(
 	machine *crypto.OlmMachine,
