@@ -24,7 +24,6 @@ type User struct {
 }
 
 func main() {
-	// ks.Init()
 	conf, err := cfg.getConf()
 
 	if err != nil {

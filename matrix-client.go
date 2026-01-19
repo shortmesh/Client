@@ -193,7 +193,7 @@ func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string
 
 		// Try using the access token directly
 		return map[string]interface{}{
-			"type":    "m.login.token",
+			"type":    mautrix.AuthTypeToken,
 			"session": flows.Session,
 			"token":   machine.Client.AccessToken,
 		}
