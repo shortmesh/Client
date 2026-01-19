@@ -1,15 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	_ "sherlock/matrix/docs"
-	"sync"
 
-	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
+	"github.com/gin-gonic/gin"
 	// "maunium.net/go/mautrix/id"
 )
 
@@ -24,96 +20,52 @@ type User struct {
 }
 
 func main() {
-	conf, err := cfg.getConf()
-
-	if err != nil {
-		panic(err)
-	}
-
-	user := User{
-		Username:         conf.User.Username,
-		AccessToken:      conf.User.AccessToken,
-		RecoveryKey:      conf.User.RecoveryKey,
-		HomeServer:       conf.HomeServer,
-		HomeServerDomain: conf.HomeServerDomain,
-	}
-
-	client, err := mautrix.NewClient(
-		user.HomeServer,
-		id.NewUserID(user.Username, user.HomeServerDomain),
-		user.AccessToken,
-	)
-	if err != nil {
-		panic(err)
-	}
-
 	if len(os.Args) > 2 {
-		switch os.Args[2] {
-		case "--login":
-			fmt.Println("[+] Login commencing...")
-			password := conf.User.Password
-
-			if _, err := (&MatrixClient{
-				Client: client,
-			}).Login(password); err != nil {
-				panic(err)
-			}
-
-			fmt.Printf("[+] DeviceID: %s\n", client.DeviceID)
-			fmt.Printf("[+] AccessToken: %s\n", client.AccessToken)
-
-			cryptoHelper, err := SetupCryptoHelper(client)
-			if err != nil {
-				panic(err)
-			}
-
-			recoverykey := GenerateAndUploadClientKeys(cryptoHelper)
-			fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
-		}
+		TerminalRoutines()
 		return
 	}
 
-	client.DeviceID = id.DeviceID(conf.User.DeviceId)
-	cryptoHelper, err := SetupCryptoHelper(client)
-	if err != nil {
-		panic(err)
-	}
-	mc := MatrixClient{
-		Client:       client,
-		CryptoHelper: cryptoHelper,
+	if cfgError != nil {
+		panic(cfgError)
 	}
 
-	mc.Client.Crypto = cryptoHelper
-
-	fmt.Printf("[+] DeviceID: %s\n", mc.Client.DeviceID)
-
-	go SyncUser(&mc, user)
+	go SyncUser()
+	go RestAPIRoutines()
 
 	select {}
 }
 
-func SyncUser(mc *MatrixClient, user User) {
-	var wg sync.WaitGroup
-	wg.Add(1)
+func RestAPIRoutines() {
+	router := gin.Default()
 
-	ch := make(chan *event.Event)
+	// Add CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
-	go func() {
-		for {
-			evt := <-ch
-			// fmt.Printf("%s\n", evt.Content.AsEncrypted().Ciphertext)
-			json, err := json.MarshalIndent(evt, "", "")
-
-			if err != nil {
-				panic(err)
-			}
-			fmt.Printf("%s\n", json)
-			// fmt.Printf("%s\n", evt.Type)
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
 		}
-	}()
 
-	err := mc.Sync(ch, user.RecoveryKey)
-	if err != nil {
-		panic(err)
+		c.Next()
+	})
+
+	router.POST("/", APICreate)
+	router.POST("/login", APILogin)
+	router.POST("/:platform/devices", APIAddDevice)
+
+	host := cfg.Server.Host
+	port := cfg.Server.Port
+
+	tlsCert := cfg.Server.Tls.Crt
+	tlsKey := cfg.Server.Tls.Key
+
+	if tlsCert != "" && tlsKey != "" {
+		router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey)
+	} else {
+		router.Run(fmt.Sprintf("%s:%s", host, port))
 	}
 }

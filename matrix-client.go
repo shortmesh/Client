@@ -98,8 +98,7 @@ func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) 
 	pickleKeyString := conf.PickleKey
 	pickleKey := []byte(pickleKeyString)
 
-	// this is a path to the SQLite database you will use to store various data about your bot
-	dbPath := "db/crypto.db"
+	dbPath := "db/crypto.db" // this path needs to change for each user
 
 	helper, err := cryptohelper.NewCryptoHelper(cli, pickleKey, dbPath)
 	if err != nil {
