@@ -224,7 +224,7 @@ var ks = Keystore{
 // 	return websocketUrl, nil
 // }
 
-func SyncUser() {
+func SyncUsers() {
 	conf, err := cfg.getConf()
 
 	if err != nil {
@@ -269,14 +269,12 @@ func SyncUser() {
 	go func() {
 		for {
 			evt := <-ch
-			// fmt.Printf("%s\n", evt.Content.AsEncrypted().Ciphertext)
 			json, err := json.MarshalIndent(evt, "", "")
 
 			if err != nil {
 				panic(err)
 			}
 			fmt.Printf("%s\n", json)
-			// fmt.Printf("%s\n", evt.Type)
 		}
 	}()
 

@@ -29,8 +29,9 @@ func main() {
 		panic(cfgError)
 	}
 
-	go SyncUser()
+	go SyncUsers()
 	go RestAPIRoutines()
+	go RabbitMQReceiver()
 
 	select {}
 }
