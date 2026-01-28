@@ -268,6 +268,10 @@ func SyncUsers() {
 	go func() {
 		for {
 			evt := <-ch
+			if evt == nil {
+				continue
+			}
+
 			json, err := json.MarshalIndent(evt, "", "")
 
 			if err != nil {
