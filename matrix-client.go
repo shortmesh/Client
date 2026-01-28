@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 
@@ -14,12 +13,6 @@ import (
 
 type SyncingClients struct {
 	Users map[string]*UserSync
-}
-
-type ClientDB struct {
-	connection *sql.DB
-	username   string
-	filepath   string
 }
 
 type MatrixClient struct {
@@ -276,7 +269,9 @@ func (m *MatrixClient) AddBridges() error {
 		if bridge.RoomID, err = bridge.JoinManagementRooms(); err != nil {
 			return err
 		} else {
-			bridge.Save()
+			if err := bridge.Save(); err != nil {
+				return err
+			}
 		}
 		log.Printf("Room created: %s\n", bridge.RoomID)
 	}

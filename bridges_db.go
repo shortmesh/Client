@@ -1,7 +1,12 @@
 package main
 
+import (
+	"database/sql"
+	"log"
+)
+
 func (clientDb *ClientDB) FetchByRoomID(roomId string) (*Bridges, error) {
-	// log.Println("Fetching bridge rooms for", username, clientDb.filepath)
+	log.Println("Fetching bridge rooms for", roomId)
 	stmt, err := clientDb.connection.Prepare(
 		"select name from rooms where roomId = ?",
 	)
@@ -18,26 +23,44 @@ func (clientDb *ClientDB) FetchByRoomID(roomId string) (*Bridges, error) {
 
 	defer rows.Close()
 
-	for rows.Next() {
-		var name string
+	// for rows.Next() {
+	// 	var name string
 
-		err = rows.Scan(&name)
-		if err != nil {
-			return (&Bridges{
-				BridgeConfig: BridgeConfig{
-					Name: name,
-				},
-			}), err
+	// 	err = rows.Scan(&name)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	return (&Bridges{
+	// 		BridgeConfig: BridgeConfig{
+	// 			Name: name,
+	// 		},
+	// 	}), err
+	// }
+
+	if rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
 		}
+
+		return &Bridges{
+			BridgeConfig: BridgeConfig{
+				Name: name,
+			},
+		}, nil
 	}
 
-	return nil, err
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return nil, sql.ErrNoRows
 }
 
 func (clientDb *ClientDB) StoreBridge(
 	roomId string,
 	name string,
-	isGroup bool,
 	memberId string,
 	deviceId string,
 ) error {
@@ -47,8 +70,8 @@ func (clientDb *ClientDB) StoreBridge(
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO clients (roomId, name, isGroup, memberId, deviceId, timestamp) 
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT OR REPLACE INTO rooms (roomId, name, memberId, deviceId, timestamp) 
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
 		return err
@@ -56,7 +79,7 @@ func (clientDb *ClientDB) StoreBridge(
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(roomId, name, isGroup, memberId, deviceId)
+	_, err = stmt.Exec(roomId, name, memberId, deviceId)
 	if err != nil {
 		return err
 	}

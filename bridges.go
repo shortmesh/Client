@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"regexp"
+	"strings"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -82,19 +83,29 @@ type Bridges struct {
 func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 	log.Println("[+] New notice for bridge", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
 	bridge, err := b.lookupBridge(evt.RoomID.String())
+	if err != nil || bridge == nil {
+		if bridge == nil {
+			log.Printf("\n- Couldn't find bridge to publish incoming event for room: %s\n", evt.RoomID)
+		}
+		return err
+	}
+
+	log.Printf("[+] Checking for bridge with name: %s\n", bridge.BridgeConfig.Name)
+	conf, err := cfg.getConf()
 	if err != nil {
 		return err
 	}
 
-	conf, err := cfg.getConf()
 	for _, confBridge := range conf.Bridges {
 		if confBridge.Name == bridge.BridgeConfig.Name {
+			log.Printf("[+] Found bridge in configs!\n")
 			b.BridgeConfig = confBridge
 		}
 	}
 
 	if evt.Sender != b.Client.UserID {
-		matched, err := regexp.MatchString(evt.Content.AsMessage().Body, b.BridgeConfig.Cmd["success"])
+		regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
+		matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
 		if err != nil {
 			return err
 		}
@@ -472,7 +483,7 @@ func (b *Bridges) Save() error {
 	}
 
 	// TODO: put device id and other params here
-	if err := clientDb.StoreBridge(b.RoomID.String(), b.BridgeConfig.Name, false, "", ""); err != nil {
+	if err := clientDb.StoreBridge(b.RoomID.String(), b.BridgeConfig.Name, "", ""); err != nil {
 		return err
 	}
 

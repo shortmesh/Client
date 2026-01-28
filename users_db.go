@@ -15,6 +15,12 @@ type Keystore struct {
 	filepath   string
 }
 
+type ClientDB struct {
+	connection *sql.DB
+	username   string
+	filepath   string
+}
+
 func (ks *Keystore) Init() {
 	db, err := sql.Open("sqlite3", ks.filepath)
 	if err != nil {
@@ -133,9 +139,10 @@ func (clientDb *ClientDB) Init() error {
 
 	CREATE TABLE IF NOT EXISTS rooms ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
+	deviceId TEXT,
 	roomId TEXT NOT NULL,
 	name TEXT NOT NULL,
-	deviceId TEXT,
+	memberId TEXT NULL,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
 	UNIQUE(roomId)
 	);
