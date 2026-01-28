@@ -10,11 +10,9 @@ import (
 )
 
 type Bridges struct {
-	Name       string
-	BotName    string
-	DeviceName string
-	RoomID     id.RoomID
-	Client     *mautrix.Client
+	BridgeConfig BridgeConfig
+	RoomID       id.RoomID
+	Client       *mautrix.Client
 }
 
 // func (b *Bridges) ProcessIncomingLoginDaemon(bridgeCfg *BridgeConfig) {
@@ -146,7 +144,7 @@ type Bridges struct {
 // }
 
 func (b *Bridges) startNewSession(cmd string) error {
-	log.Printf("[+] %sBridge| Sending message %s to %v\n", b.Name, cmd, b.RoomID)
+	log.Printf("[+] %sBridge| Sending message %s to %v\n", b.BridgeConfig.Name, cmd, b.RoomID)
 	_, err := b.Client.SendText(
 		context.Background(),
 		b.RoomID,
@@ -226,58 +224,52 @@ func (b *Bridges) checkActiveSessions() (bool, error) {
 // 	return nil
 // }
 
-func (b *Bridges) JoinManagementRooms() error {
-	joinedRooms, err := b.Client.JoinedRooms(context.Background())
-	log.Println("Joined rooms:", joinedRooms)
+func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
+	// joinedRooms, err := b.Client.JoinedRooms(context.Background())
+	// log.Println("Joined rooms:", joinedRooms)
 
+	// if err != nil {
+	// 	return err
+	// }
+
+	// var clientDb = ClientDB{
+	// 	username: b.Client.UserID.Localpart(),
+	// 	filepath: "db/" + b.Client.UserID.Localpart() + ".db",
+	// }
+	// clientDb.Init()
+
+	// for _, room := range joinedRooms.JoinedRooms {
+	// 	room := Rooms{
+	// 		Client: b.Client,
+	// 		ID:     room,
+	// 	}
+
+	// 	isManagementRoom, err := room.IsManagementRoom(b.BotName)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	log.Println("Is management room:", room.ID, isManagementRoom)
+
+	// 	if isManagementRoom {
+	// 		b.RoomID = room.ID
+	// 		break
+	// 	}
+	// }
+
+	log.Println("[+] Creating management room for:", b.BridgeConfig.Name)
+	resp, err := b.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
+		Invite:   []id.UserID{id.UserID(b.BridgeConfig.BotName)},
+		IsDirect: true,
+		// Preset:     "private_chat",
+		Preset:     "trusted_private_chat",
+		Visibility: "private",
+	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	var clientDb = ClientDB{
-		username: b.Client.UserID.Localpart(),
-		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
-	}
-	clientDb.Init()
-
-	for _, room := range joinedRooms.JoinedRooms {
-		room := Rooms{
-			Client: b.Client,
-			ID:     room,
-		}
-
-		isManagementRoom, err := room.IsManagementRoom(b.BotName)
-		if err != nil {
-			return err
-		}
-		log.Println("Is management room:", room.ID, isManagementRoom)
-
-		if isManagementRoom {
-			b.RoomID = room.ID
-			break
-		}
-	}
-
-	if b.RoomID == "" {
-		log.Println("[+] Creating management room for:", b.BotName)
-		resp, err := b.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
-			Invite:   []id.UserID{id.UserID(b.BotName)},
-			IsDirect: true,
-			// Preset:     "private_chat",
-			Preset:     "trusted_private_chat",
-			Visibility: "private",
-		})
-		if err != nil {
-			return err
-		}
-
-		b.RoomID = resp.RoomID
-	}
-
-	clientDb.StoreRooms(b.RoomID.String(), b.Name, "", b.BotName, true)
-	log.Println("[+] Stored room successfully for:", b.BotName, b.RoomID)
-
-	return nil
+	b.RoomID = resp.RoomID
+	return resp.RoomID, nil
 }
 
 // func (b *Bridges) ListDevices() ([]string, error) {
@@ -339,7 +331,7 @@ func (b *Bridges) JoinManagementRooms() error {
 // }
 
 func (b *Bridges) CreateContactRooms() error {
-	log.Println("Joining member rooms for:", b.Name)
+	log.Println("Joining member rooms for:", b.BridgeConfig.Name)
 
 	clientDb := ClientDB{
 		username: b.Client.UserID.Localpart(),
@@ -347,7 +339,7 @@ func (b *Bridges) CreateContactRooms() error {
 	}
 	clientDb.Init()
 
-	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.Name, cfg.HomeServerDomain)
+	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.BridgeConfig.Name, cfg.HomeServerDomain)
 	eventSubName = eventSubName + "+join"
 
 	processedRooms := make(map[id.RoomID]bool)
@@ -385,7 +377,7 @@ func (b *Bridges) CreateContactRooms() error {
 				}
 				log.Println("Power levels events:", powerLevelsEvents)
 
-				isManagementRoom, err := room.IsManagementRoom(b.BotName)
+				isManagementRoom, err := room.IsManagementRoom(b.BridgeConfig.BotName)
 				if err != nil {
 					log.Println("Failed checking if room is management room", err)
 					return
@@ -406,7 +398,7 @@ func (b *Bridges) CreateContactRooms() error {
 
 					for _, member := range members {
 						log.Println("Checking member:", member.String())
-						matched, err := cfg.CheckUsernameTemplate(b.Name, member.String())
+						matched, err := cfg.CheckUsernameTemplate(b.BridgeConfig.BotName, member.String())
 						if err != nil {
 							log.Println("Failed checking username template", err)
 							return
@@ -415,11 +407,11 @@ func (b *Bridges) CreateContactRooms() error {
 							continue
 						}
 
-						devices := ClientDevices[b.Client.UserID.Localpart()][b.Name]
+						devices := ClientDevices[b.Client.UserID.Localpart()][b.BridgeConfig.Name]
 						log.Println("Devices:", devices)
 
 						for _, device := range devices {
-							formattedUsername, err := cfg.FormatUsername(b.Name, device)
+							formattedUsername, err := cfg.FormatUsername(b.BridgeConfig.Name, device)
 							if err != nil {
 								log.Println("Failed formatting username", err, device)
 								continue
@@ -442,7 +434,7 @@ func (b *Bridges) CreateContactRooms() error {
 
 					if foundDevice && len(foundMembers) > 0 {
 						for _, fMember := range foundMembers {
-							clientDb.StoreRooms(evt.RoomID.String(), b.Name, foundDeviceUserName, fMember, false)
+							clientDb.StoreRooms(evt.RoomID.String(), b.BridgeConfig.Name, foundDeviceUserName, fMember, false)
 							// log.Println("Stored room:", event.RoomID.String(), b.Name, fMember, false, foundDeviceUserName)
 						}
 					}
@@ -457,7 +449,7 @@ func (b *Bridges) CreateContactRooms() error {
 }
 
 func (b *Bridges) GetRoomInvitesDaemon() error {
-	log.Println("Getting room invites for:", b.Name, b.RoomID)
+	log.Println("Getting room invites for:", b.BridgeConfig.Name, b.RoomID)
 
 	resp, err := b.Client.SyncRequest(context.Background(), 30000, "", "", true, event.PresenceOnline)
 	if err != nil {
@@ -472,7 +464,7 @@ func (b *Bridges) GetRoomInvitesDaemon() error {
 		}
 	}
 
-	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.Name, cfg.HomeServerDomain) + "+invites"
+	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.BridgeConfig.Name, cfg.HomeServerDomain) + "+invites"
 	eventSubscriber := EventSubscriber{
 		Name:    eventSubName,
 		MsgType: nil,

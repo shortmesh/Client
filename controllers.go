@@ -6,7 +6,6 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -281,50 +280,5 @@ func SyncUsers() {
 	err = mc.Sync(ch, user.RecoveryKey)
 	if err != nil {
 		panic(err)
-	}
-}
-
-func TerminalRoutines() {
-	conf, err := cfg.getConf()
-
-	if err != nil {
-		panic(err)
-	}
-
-	user := User{
-		Username:         conf.User.Username,
-		AccessToken:      conf.User.AccessToken,
-		RecoveryKey:      conf.User.RecoveryKey,
-		HomeServer:       conf.HomeServer,
-		HomeServerDomain: conf.HomeServerDomain,
-	}
-
-	client, err := mautrix.NewClient(
-		user.HomeServer,
-		id.NewUserID(user.Username, user.HomeServerDomain),
-		user.AccessToken,
-	)
-
-	switch os.Args[2] {
-	case "--login":
-		fmt.Println("[+] Login commencing...")
-		password := conf.User.Password
-
-		if _, err := (&MatrixClient{
-			Client: client,
-		}).Login(password); err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("[+] DeviceID: %s\n", client.DeviceID)
-		fmt.Printf("[+] AccessToken: %s\n", client.AccessToken)
-
-		cryptoHelper, err := SetupCryptoHelper(client)
-		if err != nil {
-			panic(err)
-		}
-
-		recoverykey := GenerateAndUploadClientKeys(cryptoHelper)
-		fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
 	}
 }

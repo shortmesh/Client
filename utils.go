@@ -13,9 +13,11 @@ import (
 )
 
 type BridgeConfig struct {
-	BotName          string            `yaml:"botname"`
-	UsernameTemplate string            `yaml:"username_template"`
-	Cmd              map[string]string `yaml:"cmd"` // ← map instead of slice of maps
+	Name                    string            `yaml:"name"`
+	BotName                 string            `yaml:"botname"`
+	UsernameTemplate        string            `yaml:"username_template"`
+	DisplayUsernameTemplate string            `yaml:"display_username_template"`
+	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
 }
 
 type Tls struct {
@@ -36,14 +38,14 @@ type Server struct {
 }
 
 type Conf struct {
-	Server           Server                    `yaml:"server"`
-	Websocket        ServerWebsocket           `yaml:"websocket"`
-	KeystoreFilepath string                    `yaml:"keystore_filepath"`
-	HomeServer       string                    `yaml:"homeserver"`
-	HomeServerDomain string                    `yaml:"homeserver_domain"`
-	Bridges          []map[string]BridgeConfig `yaml:"bridges"`
-	User             User                      `yaml:"user"`
-	PickleKey        string                    `yaml:"pickle_key"`
+	Server           Server          `yaml:"server"`
+	Websocket        ServerWebsocket `yaml:"websocket"`
+	KeystoreFilepath string          `yaml:"keystore_filepath"`
+	HomeServer       string          `yaml:"homeserver"`
+	HomeServerDomain string          `yaml:"homeserver_domain"`
+	Bridges          []BridgeConfig  `yaml:"bridges"`
+	User             User            `yaml:"user"`
+	PickleKey        string          `yaml:"pickle_key"`
 }
 
 func (c *Conf) getConf() (*Conf, error) {
@@ -60,23 +62,13 @@ func (c *Conf) getConf() (*Conf, error) {
 	return c, nil
 }
 
-func (c *Conf) GetBridgeConfig(bridgeType string) (*BridgeConfig, bool) {
-	for _, entry := range c.Bridges {
-		if config, ok := entry[bridgeType]; ok {
-			return &config, true
+func (c *Conf) GetBridgeConfig(name string) (*BridgeConfig, bool) {
+	for _, bridge := range c.Bridges {
+		if bridge.Name == name {
+			return &bridge, true
 		}
 	}
 	return nil, false
-}
-
-func (c *Conf) GetBridges() []*Bridges {
-	var bridges []*Bridges
-	for _, entry := range c.Bridges {
-		for name, _ := range entry {
-			bridges = append(bridges, &Bridges{Name: name})
-		}
-	}
-	return bridges
 }
 
 func ParseImage(client *mautrix.Client, url string) ([]byte, error) {

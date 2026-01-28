@@ -20,14 +20,12 @@ type Rooms struct {
 func (r *Rooms) IsBridgeInviteForContact(evt *event.Event) (bool, error) {
 	// TODO: check if the invite is from a bridge bot but not a bridge room
 	for _, bridge := range cfg.Bridges {
-		for _, bridgeCfg := range bridge {
-			if bridgeCfg.BotName == evt.Sender.String() {
-				isBridge, err := r.IsBridgeMessage(evt)
-				if err != nil {
-					return false, err
-				}
-				return !isBridge, nil
+		if bridge.BotName == evt.Sender.String() {
+			isBridge, err := r.IsBridgeMessage(evt)
+			if err != nil {
+				return false, err
 			}
+			return !isBridge, nil
 		}
 	}
 

@@ -408,10 +408,7 @@ func (clientDb *ClientDB) FetchBridgeRooms(username string) ([]*Bridges, error) 
 		}
 
 		bridges = append(bridges, &Bridges{
-			RoomID:     id.RoomID(_roomID),
-			Name:       platformName,
-			DeviceName: deviceName,
-			BotName:    members,
+			RoomID: id.RoomID(_roomID),
 		})
 	}
 
