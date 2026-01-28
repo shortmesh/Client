@@ -14,6 +14,7 @@ import (
 // *
 // !
 
+// EXPLORATION:
 func addBridges(client *mautrix.Client) {
 	if err := (&MatrixClient{
 		Client: client,
@@ -73,6 +74,7 @@ func TerminalRoutines() {
 	case "--add-bridge":
 		fmt.Println("[+] Adding bridges commencing...")
 		addBridges(client)
+	case "--send-message":
 	}
 
 }

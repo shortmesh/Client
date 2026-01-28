@@ -274,10 +274,14 @@ func SyncUsers() {
 				panic(err)
 			}
 			fmt.Printf("%s\n", json)
+
+			go (&Bridges{
+				Client: client,
+			}).ProcessIncomingMessages(evt)
 		}
 	}()
 
-	err = mc.Sync(ch, user.RecoveryKey)
+	err = mc.Sync(ch)
 	if err != nil {
 		panic(err)
 	}

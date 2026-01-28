@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sync"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto"
@@ -114,7 +113,7 @@ func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) 
 	return helper, nil
 }
 
-func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
+func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	syncer := mautrix.NewDefaultSyncer()
 	m.Client.Syncer = syncer
 	machine := m.CryptoHelper.Machine()
@@ -127,9 +126,7 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 		ch <- evt
 	})
 
-	// Handle incoming room key events
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
-		// Let the crypto machine handle all to-device encryption events
 		if evt.Type.Class == event.ToDeviceEventType {
 			machine.HandleToDeviceEvent(ctx, evt)
 			log.Printf("Handled to device...")
@@ -139,33 +136,28 @@ func (m *MatrixClient) Sync(ch chan *event.Event, recoveryKey string) error {
 				ID:     evt.RoomID,
 			}).GetInvites(evt)
 		}
-		log.Printf("%s\n", evt.Type)
+		// log.Printf("%s\n", evt.Type)
 	})
 
-	readyChan := make(chan bool)
-	var once sync.Once
-	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
-		once.Do(func() {
-			close(readyChan)
-		})
+	// readyChan := make(chan bool)
+	// var once sync.Once
+	// syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
+	// 	once.Do(func() {
+	// 		close(readyChan)
+	// 	})
 
-		return true
-	})
+	// 	return true
+	// })
 
 	go func() {
 		if err := m.Client.Sync(); err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}()
 
-	log.Println("Waiting for sync to receive first event from the encrypted room...")
-	<-readyChan
-	log.Println("Sync received")
-
-	// err := verifyRecoveryKey(m.CryptoHelper.Machine(), recoveryKey)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	// log.Println("Waiting for sync to receive first event from the encrypted room...")
+	// <-readyChan
+	// log.Println("Sync received")
 
 	return nil
 }
@@ -281,8 +273,10 @@ func (m *MatrixClient) AddBridges() error {
 			BridgeConfig: confBridge,
 			Client:       m.Client,
 		}
-		if _, err := bridge.JoinManagementRooms(); err != nil {
+		if bridge.RoomID, err = bridge.JoinManagementRooms(); err != nil {
 			return err
+		} else {
+			bridge.Save()
 		}
 		log.Printf("Room created: %s\n", bridge.RoomID)
 	}

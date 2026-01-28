@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"regexp"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -78,77 +79,58 @@ type Bridges struct {
 // 	EventSubscribers = append(EventSubscribers, eventSubscriber)
 // }
 
-// func (b *Bridges) processIncomingLoginMessages(ch *chan []byte) {
-// 	since := time.Now().UTC().Add(-2 * time.Minute)
+func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
+	log.Println("[+] New notice for bridge", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
+	bridge, err := b.lookupBridge(evt.RoomID.String())
+	if err != nil {
+		return err
+	}
 
-// 	var clientDb = ClientDB{
-// 		username: b.Client.UserID.Localpart(),
-// 		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
-// 	}
+	conf, err := cfg.getConf()
+	for _, confBridge := range conf.Bridges {
+		if confBridge.Name == bridge.BridgeConfig.Name {
+			b.BridgeConfig = confBridge
+		}
+	}
 
-// 	if err := clientDb.Init(); err != nil {
-// 		log.Println("Error initializing client db:", err)
-// 		return
-// 	}
+	if evt.Sender != b.Client.UserID {
+		matched, err := regexp.MatchString(evt.Content.AsMessage().Body, b.BridgeConfig.Cmd["success"])
+		if err != nil {
+			return err
+		}
 
-// 	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.Name, cfg.HomeServerDomain) + "+login"
-// 	eventSubscriber := EventSubscriber{}
-// 	for _, subscriber := range EventSubscribers {
-// 		if subscriber.Name == eventSubName {
-// 			// eventSubscriber = subscriber
-// 			log.Println("Event subscriber already exists for:", eventSubName)
-// 			return
-// 		}
-// 	}
+		if matched {
+			log.Println("[+] Device added successfully....")
+		}
+	}
+	return nil
+}
 
-// 	noticeType := event.MsgNotice
-// 	eventSubscriber = EventSubscriber{
-// 		Name:    eventSubName,
-// 		MsgType: &noticeType,
-// 		Since:   &since,
-// 		RoomID:  b.RoomID,
-// 		Callback: func(evt *event.Event) {
-// 			log.Println("New notice for login", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
-// 			if evt.Sender != b.Client.UserID && evt.Type == event.EventMessage {
-// 				matchesOngoing, err := cfg.CheckOngoingPattern(b.Name, evt.Content.AsMessage().Body)
+func (b *Bridges) lookupBridge(roomId string) (*Bridges, error) {
+	//TODO: should check for which device is making this call, user can have multiple
+	var clientDb = ClientDB{
+		username: b.Client.UserID.Localpart(),
+		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
+	}
 
-// 				if err != nil {
-// 					log.Println("Error checking ongoing pattern:", err)
-// 					*ch <- nil
-// 				}
+	if err := clientDb.Init(); err != nil {
+		log.Println("Error initializing client db:", err)
+		return nil, err
+	}
 
-// 				if matchesOngoing {
-// 					time.Sleep(3 * time.Second)
-// 					sessions, _, err := clientDb.FetchActiveSessions(b.Client.UserID.Localpart())
-// 					if err != nil {
-// 						log.Println("Error fetching ongoing sessions:", err)
-// 						*ch <- nil
-// 					}
+	bridge, err := clientDb.FetchByRoomID(roomId)
+	if err != nil {
+		return nil, err
+	}
+	return bridge, nil
+}
 
-// 					*ch <- sessions
-// 				}
-// 			}
-
-// 			// defer func() {
-// 			// 	for index, subscriber := range EventSubscribers {
-// 			// 		if subscriber.Name == eventSubName {
-// 			// 			EventSubscribers = append(EventSubscribers[:index], EventSubscribers[index+1:]...)
-// 			// 			break
-// 			// 		}
-// 			// 	}
-// 			// }()
-// 		},
-// 	}
-// 	EventSubscribers = append(EventSubscribers, eventSubscriber)
-// 	log.Println("Added event subscriber for:", eventSubscriber)
-// }
-
-func (b *Bridges) startNewSession(cmd string) error {
-	log.Printf("[+] %sBridge| Sending message %s to %v\n", b.BridgeConfig.Name, cmd, b.RoomID)
+func (b *Bridges) queryCommand(query string) error {
+	log.Printf("[+] %sBridge| Sending message %s to %v\n", b.BridgeConfig.Name, query, b.RoomID)
 	_, err := b.Client.SendText(
 		context.Background(),
 		b.RoomID,
-		cmd,
+		query,
 	)
 
 	if err != nil {
@@ -180,49 +162,29 @@ func (b *Bridges) checkActiveSessions() (bool, error) {
 	return true, nil
 }
 
-// func (b *Bridges) AddDevice(ch *chan []byte) error {
-// 	log.Println("Getting configs for:", b.Name, b.RoomID)
-// 	bridgeCfg, ok := cfg.GetBridgeConfig(b.Name)
+func (b *Bridges) AddDevice(ch *chan []byte) error {
+	// var clientDb = ClientDB{
+	// 	username: b.Client.UserID.Localpart(),
+	// 	filepath: "db/" + b.Client.UserID.Localpart() + ".db",
+	// }
 
-// 	if !ok {
-// 		return fmt.Errorf("bridge config not found for: %s", b.Name)
-// 	}
+	// if err := clientDb.Init(); err != nil {
+	// 	return err
+	// }
 
-// 	var clientDb = ClientDB{
-// 		username: b.Client.UserID.Localpart(),
-// 		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
-// 	}
+	// TODO:
+	// activeSessions, err := b.checkActiveSessions()
+	// if err != nil {
+	// 	log.Println("Failed checking active sessions", err)
+	// 	return err
+	// }
 
-// 	if err := clientDb.Init(); err != nil {
-// 		return err
-// 	}
+	if err := b.queryCommand(b.BridgeConfig.Cmd["login"]); err != nil {
+		return err
+	}
 
-// 	loginCmd, exists := bridgeCfg.Cmd["login"]
-// 	if !exists {
-// 		return fmt.Errorf("login command not found for: %s", b.Name)
-// 	}
-
-// 	b.processIncomingLoginMessages(ch)
-// 	log.Println("Processed incoming login messages for:", b.Name)
-
-// 	activeSessions, err := b.checkActiveSessions()
-// 	if err != nil {
-// 		log.Println("Failed checking active sessions", err)
-// 		return err
-// 	}
-
-// 	if !activeSessions {
-// 		log.Println("No active sessions found, removing active sessions")
-// 		clientDb.RemoveActiveSessions(b.Client.UserID.Localpart())
-// 		err := b.startNewSession(loginCmd)
-// 		if err != nil {
-// 			log.Println("Failed starting new session", err)
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
+	return nil
+}
 
 func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 	// joinedRooms, err := b.Client.JoinedRooms(context.Background())
@@ -264,6 +226,21 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 		Preset:     "trusted_private_chat",
 		Visibility: "private",
 	})
+	if err != nil {
+		return "", err
+	}
+
+	// * Begins encryption
+	_, err = b.Client.SendStateEvent(
+		context.Background(),
+		resp.RoomID,
+		event.StateEncryption,
+		"",
+		&event.EncryptionEventContent{
+			Algorithm: id.AlgorithmMegolmV1, // "m.megolm.v1.aes-sha2"
+		},
+	)
+
 	if err != nil {
 		return "", err
 	}
@@ -479,6 +456,25 @@ func (b *Bridges) GetRoomInvitesDaemon() error {
 	}
 
 	EventSubscribers = append(EventSubscribers, eventSubscriber)
+
+	return nil
+}
+
+func (b *Bridges) Save() error {
+	var clientDb = ClientDB{
+		username: b.Client.UserID.Localpart(),
+		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
+	}
+
+	if err := clientDb.Init(); err != nil {
+		log.Println("Error initializing client db:", err)
+		return err
+	}
+
+	// TODO: put device id and other params here
+	if err := clientDb.StoreBridge(b.RoomID.String(), b.BridgeConfig.Name, false, "", ""); err != nil {
+		return err
+	}
 
 	return nil
 }

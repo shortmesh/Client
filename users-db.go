@@ -133,16 +133,11 @@ func (clientDb *ClientDB) Init() error {
 
 	CREATE TABLE IF NOT EXISTS rooms ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
-	clientUsername TEXT NOT NULL,
-	roomID TEXT NOT NULL,
-	platformName TEXT NOT NULL,
-	members TEXT NOT NULL,
-	deviceName TEXT,
-	isBridge INTEGER NOT NULL,
-	sessions BLOB,
+	roomId TEXT NOT NULL,
+	name TEXT NOT NULL,
+	deviceId TEXT,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	sessionsTimestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(clientUsername, roomID, platformName, isBridge)
+	UNIQUE(roomId)
 	);
 	
 	CREATE TABLE IF NOT EXISTS webhooks (
@@ -373,46 +368,6 @@ func (clientDb *ClientDB) FetchRoomsByMembers(members string) ([]Rooms, error) {
 	}
 
 	return rooms, nil
-}
-
-func (clientDb *ClientDB) FetchBridgeRooms(username string) ([]*Bridges, error) {
-	// log.Println("Fetching bridge rooms for", username, clientDb.filepath)
-	stmt, err := clientDb.connection.Prepare(
-		"select clientUsername, roomID, platformName, deviceName, members, isBridge from rooms where clientUsername = ? and isBridge = 1",
-	)
-	if err != nil {
-		return []*Bridges{}, err
-	}
-
-	defer stmt.Close()
-
-	rows, err := stmt.Query(username)
-	if err != nil {
-		return []*Bridges{}, err
-	}
-
-	defer rows.Close()
-
-	var bridges = []*Bridges{}
-	for rows.Next() {
-		var clientUsername string
-		var _roomID string
-		var platformName string
-		var deviceName string
-		var members string
-		var isBridge bool
-
-		err = rows.Scan(&clientUsername, &_roomID, &platformName, &deviceName, &members, &isBridge)
-		if err != nil {
-			return []*Bridges{}, err
-		}
-
-		bridges = append(bridges, &Bridges{
-			RoomID: id.RoomID(_roomID),
-		})
-	}
-
-	return bridges, err
 }
 
 func (clientDb *ClientDB) FetchActiveSessions(username string) ([]byte, time.Time, error) {
