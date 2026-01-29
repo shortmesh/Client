@@ -148,3 +148,30 @@ func (c *Controller) AddBridges() error {
 	return nil
 
 }
+
+func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
+	// ? Create room
+
+	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+
+	bridge, err := (&Bridges{}).lookupBridgeByName(bridgeName)
+	if err != nil {
+		return nil, err
+	}
+
+	botUsername := bridge.BridgeConfig.BotName
+
+	roomId, err := (&Rooms{
+		Client:   c.Client,
+		IsBridge: true,
+	}).JoinRoom([]id.UserID{
+		id.UserID(contactUsername),
+		id.UserID(deviceId),
+		id.UserID(botUsername),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &roomId, nil
+}

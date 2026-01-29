@@ -309,9 +309,7 @@ func (clientDb *ClientDB) FetchRooms(roomID string) (Rooms, error) {
 	}
 
 	var room = Rooms{
-		ID:         id.RoomID(_roomID),
-		isBridge:   isBridge,
-		DeviceName: deviceName,
+		ID: id.RoomID(_roomID),
 		Members: map[string]string{
 			platformName: members,
 		},
@@ -351,9 +349,7 @@ func (clientDb *ClientDB) FetchRoomsByMembers(members string) ([]Rooms, error) {
 		}
 
 		room := Rooms{
-			ID:         id.RoomID(_roomID),
-			isBridge:   isBridge,
-			DeviceName: _deviceName,
+			ID: id.RoomID(_roomID),
 			Members: map[string]string{
 				_platformName: _members,
 			},

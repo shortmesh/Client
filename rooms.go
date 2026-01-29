@@ -10,48 +10,47 @@ import (
 )
 
 type Rooms struct {
-	Client     *mautrix.Client
-	ID         id.RoomID
-	isBridge   bool
-	DeviceName string
-	Members    map[string]string
+	Client   *mautrix.Client
+	ID       id.RoomID
+	IsBridge bool
+	Members  map[string]string
 }
 
-func (r *Rooms) IsBridgeInviteForContact(evt *event.Event) (bool, error) {
-	// TODO: check if the invite is from a bridge bot but not a bridge room
-	for _, bridge := range cfg.Bridges {
-		if bridge.BotName == evt.Sender.String() {
-			isBridge, err := r.IsBridgeMessage(evt)
-			if err != nil {
-				return false, err
-			}
-			return !isBridge, nil
-		}
-	}
+// func (r *Rooms) IsBridgeInviteForContact(evt *event.Event) (bool, error) {
+// 	// TODO: check if the invite is from a bridge bot but not a bridge room
+// 	for _, bridge := range cfg.Bridges {
+// 		if bridge.BotName == evt.Sender.String() {
+// 			isBridge, err := r.IsBridgeMessage(evt)
+// 			if err != nil {
+// 				return false, err
+// 			}
+// 			return !isBridge, nil
+// 		}
+// 	}
 
-	return false, nil
-}
+// 	return false, nil
+// }
 
-func (r *Rooms) IsBridgeMessage(evt *event.Event) (bool, error) {
-	if evt.Type == event.EventMessage {
-		var clientDB ClientDB = ClientDB{
-			username: r.Client.UserID.Localpart(),
-			filepath: "db/" + r.Client.UserID.Localpart() + ".db",
-		}
+// func (r *Rooms) IsBridgeMessage(evt *event.Event) (bool, error) {
+// 	if evt.Type == event.EventMessage {
+// 		var clientDB ClientDB = ClientDB{
+// 			username: r.Client.UserID.Localpart(),
+// 			filepath: "db/" + r.Client.UserID.Localpart() + ".db",
+// 		}
 
-		clientDB.Init()
-		defer clientDB.Close()
+// 		clientDB.Init()
+// 		defer clientDB.Close()
 
-		room, err := clientDB.FetchRooms(evt.RoomID.String())
+// 		room, err := clientDB.FetchRooms(evt.RoomID.String())
 
-		if err != nil {
-			return false, err
-		}
+// 		if err != nil {
+// 			return false, err
+// 		}
 
-		return room.isBridge, nil
-	}
-	return false, nil
-}
+// 		return room.isBridge, nil
+// 	}
+// 	return false, nil
+// }
 
 func (r *Rooms) GetRoomMembers(client *mautrix.Client, roomId id.RoomID) ([]id.UserID, error) {
 	members, err := client.JoinedMembers(context.Background(), roomId)
@@ -156,4 +155,35 @@ func (r *Rooms) GetInvites(
 		}
 	}
 	return nil
+}
+
+func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
+	resp, err := r.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
+		Invite:   invites,
+		IsDirect: true,
+		// Preset:     "private_chat",
+		Preset:     "trusted_private_chat",
+		Visibility: "private",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// * Begins encryption
+	_, err = r.Client.SendStateEvent(
+		context.Background(),
+		resp.RoomID,
+		event.StateEncryption,
+		"",
+		&event.EncryptionEventContent{
+			Algorithm: id.AlgorithmMegolmV1, // "m.megolm.v1.aes-sha2"
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	r.ID = resp.RoomID
+	return resp.RoomID, nil
 }

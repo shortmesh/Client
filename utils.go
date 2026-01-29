@@ -146,14 +146,14 @@ func (c *Conf) CheckUsernameTemplate(bridgeType string, username string) (bool, 
 	return matched, nil
 }
 
-func (c *Conf) FormatUsername(bridgeType string, username string) (string, error) {
-	config, ok := c.GetBridgeConfig(bridgeType)
+func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
+	config, ok := c.GetBridgeConfig(bridgeName)
 	if !ok {
-		return "", fmt.Errorf("bridge type %s not found in configuration", bridgeType)
+		return "", fmt.Errorf("bridge type %s not found in configuration", bridgeName)
 	}
 
 	if config.UsernameTemplate == "" {
-		return "", fmt.Errorf("username template not found for bridge type %s", bridgeType)
+		return "", fmt.Errorf("username template not found for bridge type %s", bridgeName)
 	}
 
 	// Replace {{.}} with the actual username

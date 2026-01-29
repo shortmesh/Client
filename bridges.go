@@ -113,6 +113,7 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 
 		if matched {
 			// TODO: something important with the new devices added
+			// Successfully logged in as +123456789
 			log.Println("[+] Device added successfully....")
 		}
 	}
@@ -267,34 +268,18 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 	// }
 
 	log.Println("[+] Creating management room for:", b.BridgeConfig.Name)
-	resp, err := b.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
-		Invite:   []id.UserID{id.UserID(b.BridgeConfig.BotName)},
-		IsDirect: true,
-		// Preset:     "private_chat",
-		Preset:     "trusted_private_chat",
-		Visibility: "private",
+	roomId, err := (&Rooms{
+		Client:   b.Client,
+		IsBridge: true,
+	}).JoinRoom([]id.UserID{
+		id.UserID(b.BridgeConfig.BotName),
 	})
 	if err != nil {
 		return "", err
 	}
 
-	// * Begins encryption
-	_, err = b.Client.SendStateEvent(
-		context.Background(),
-		resp.RoomID,
-		event.StateEncryption,
-		"",
-		&event.EncryptionEventContent{
-			Algorithm: id.AlgorithmMegolmV1, // "m.megolm.v1.aes-sha2"
-		},
-	)
-
-	if err != nil {
-		return "", err
-	}
-
-	b.RoomID = resp.RoomID
-	return resp.RoomID, nil
+	b.RoomID = roomId
+	return roomId, nil
 }
 
 // func (b *Bridges) ListDevices() ([]string, error) {

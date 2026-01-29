@@ -15,6 +15,15 @@ import (
 // !
 
 // EXPLORATION:
+func sendMessage(client *mautrix.Client, deviceId, bridgeName, contact, message string) {
+	if _, err := (&Controller{
+		Client: client,
+	}).SendMessage(bridgeName, deviceId, contact, message); err != nil {
+		log.Panic(err)
+	}
+}
+
+// EXPLORATION:
 func addDevice(client *mautrix.Client, bridgeName string) {
 	if err := (&Controller{
 		Client: client,
@@ -88,6 +97,12 @@ func TerminalRoutines() {
 		fmt.Println("[+] Adding bridges commencing...")
 		addBridges(client)
 	case "--send-message":
+		deviceId := os.Args[3]
+		bridgeName := os.Args[4]
+		contact := os.Args[5]
+		message := os.Args[6]
+		fmt.Printf("[+] Sending message: From %s -> %s for %s, %s\n", deviceId, contact, bridgeName, message)
+		sendMessage(client, deviceId, bridgeName, contact, message)
 	}
 
 }
