@@ -81,19 +81,18 @@ type Bridges struct {
 // }
 
 func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
-	log.Println("[+] New notice for bridge", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
-	bridge, err := b.lookupBridge(evt.RoomID.String())
+	bridge, err := b.lookupBridgeByRoomId(evt.RoomID.String())
 	if err != nil || bridge == nil {
 		if bridge == nil {
 			log.Printf("\n- Couldn't find bridge to publish incoming event for room: %s\n", evt.RoomID)
 		}
 		return err
 	}
+	log.Println("[+] New notice for bridge", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
 
-	log.Printf("[+] Checking for bridge with name: %s\n", bridge.BridgeConfig.Name)
 	conf, err := cfg.getConf()
 	if err != nil {
-		return err
+		return nil
 	}
 
 	for _, confBridge := range conf.Bridges {
@@ -103,6 +102,8 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 		}
 	}
 
+	log.Printf("[+] Checking for bridge with name: %s\n", bridge.BridgeConfig.Name)
+
 	if evt.Sender != b.Client.UserID {
 		regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
 		matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
@@ -111,13 +112,14 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 		}
 
 		if matched {
+			// TODO: something important with the new devices added
 			log.Println("[+] Device added successfully....")
 		}
 	}
 	return nil
 }
 
-func (b *Bridges) lookupBridge(roomId string) (*Bridges, error) {
+func (b *Bridges) lookupBridgeByName(name string) (*Bridges, error) {
 	//TODO: should check for which device is making this call, user can have multiple
 	var clientDb = ClientDB{
 		username: b.Client.UserID.Localpart(),
@@ -129,7 +131,42 @@ func (b *Bridges) lookupBridge(roomId string) (*Bridges, error) {
 		return nil, err
 	}
 
-	bridge, err := clientDb.FetchByRoomID(roomId)
+	bridges, err := clientDb.FetchRoomByName(name)
+	if err != nil {
+		return nil, err
+	}
+
+	bridge := bridges[0]
+	bridge.Client = b.Client
+
+	conf, err := cfg.getConf()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, confBridge := range conf.Bridges {
+		if confBridge.Name == name {
+			log.Printf("[+] Found bridge in configs!\n")
+			bridge.BridgeConfig = confBridge
+		}
+	}
+
+	return bridges[0], nil
+}
+
+func (b *Bridges) lookupBridgeByRoomId(roomId string) (*Bridges, error) {
+	//TODO: should check for which device is making this call, user can have multiple
+	var clientDb = ClientDB{
+		username: b.Client.UserID.Localpart(),
+		filepath: "db/" + b.Client.UserID.Localpart() + ".db",
+	}
+
+	if err := clientDb.Init(); err != nil {
+		log.Println("Error initializing client db:", err)
+		return nil, err
+	}
+
+	bridge, err := clientDb.FetchRoomByRoomId(roomId)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +210,7 @@ func (b *Bridges) checkActiveSessions() (bool, error) {
 	return true, nil
 }
 
-func (b *Bridges) AddDevice(ch *chan []byte) error {
+func (b *Bridges) AddDevice() error {
 	// var clientDb = ClientDB{
 	// 	username: b.Client.UserID.Localpart(),
 	// 	filepath: "db/" + b.Client.UserID.Localpart() + ".db",
@@ -330,146 +367,135 @@ func (b *Bridges) CreateContactRooms() error {
 	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.BridgeConfig.Name, cfg.HomeServerDomain)
 	eventSubName = eventSubName + "+join"
 
-	processedRooms := make(map[id.RoomID]bool)
+	// processedRooms := make(map[id.RoomID]bool)
 
-	eventSubscriber := EventSubscriber{
-		Name:    eventSubName,
-		MsgType: nil,
-		ExcludeMsgTypes: []event.MessageType{
-			event.MsgNotice, event.MsgVerificationRequest, event.MsgLocation,
-		},
-		Callback: func(evt *event.Event) {
-			// log.Println("Received event:", event.RoomID, event.Content.AsMessage().Body)
-			if evt.RoomID != "" {
-				room := Rooms{
-					Client: b.Client,
-					ID:     evt.RoomID,
-				}
+	// log.Println("Received event:", event.RoomID, event.Content.AsMessage().Body)
+	// if evt.RoomID != "" {
+	// 	room := Rooms{
+	// 		Client: b.Client,
+	// 		ID:     evt.RoomID,
+	// 	}
 
-				if _, ok := processedRooms[evt.RoomID]; ok {
-					return
-				}
+	// 	if _, ok := processedRooms[evt.RoomID]; ok {
+	// 		return
+	// 	}
 
-				processedRooms[evt.RoomID] = true
+	// 	processedRooms[evt.RoomID] = true
 
-				powerLevels, err := room.GetPowerLevelsUser()
-				if err != nil {
-					log.Println("Failed getting power levels", err)
-					return
-				}
-				log.Println("Power levels:", powerLevels)
-				powerLevelsEvents, err := room.GetPowerLevelsEvents()
-				if err != nil {
-					log.Println("Failed getting power levels events", err)
-					return
-				}
-				log.Println("Power levels events:", powerLevelsEvents)
+	// 	powerLevels, err := room.GetPowerLevelsUser()
+	// 	if err != nil {
+	// 		log.Println("Failed getting power levels", err)
+	// 		return
+	// 	}
+	// 	log.Println("Power levels:", powerLevels)
+	// 	powerLevelsEvents, err := room.GetPowerLevelsEvents()
+	// 	if err != nil {
+	// 		log.Println("Failed getting power levels events", err)
+	// 		return
+	// 	}
+	// 	log.Println("Power levels events:", powerLevelsEvents)
 
-				isManagementRoom, err := room.IsManagementRoom(b.BridgeConfig.BotName)
-				if err != nil {
-					log.Println("Failed checking if room is management room", err)
-					return
-				}
-				log.Println("Is management room:", evt.RoomID, isManagementRoom)
-				processedRooms[evt.RoomID] = true
+	// 	isManagementRoom, err := room.IsManagementRoom(b.BridgeConfig.BotName)
+	// 	if err != nil {
+	// 		log.Println("Failed checking if room is management room", err)
+	// 		return
+	// 	}
+	// 	log.Println("Is management room:", evt.RoomID, isManagementRoom)
+	// 	processedRooms[evt.RoomID] = true
 
-				if !isManagementRoom {
-					members, err := room.GetRoomMembers(b.Client, evt.RoomID)
-					if err != nil {
-						log.Println("Failed getting room members", err)
-						return
-					}
+	// 	if !isManagementRoom {
+	// 		members, err := room.GetRoomMembers(b.Client, evt.RoomID)
+	// 		if err != nil {
+	// 			log.Println("Failed getting room members", err)
+	// 			return
+	// 		}
 
-					foundDevice := false
-					foundMembers := make([]string, 0)
-					foundDeviceUserName := ""
+	// 		foundDevice := false
+	// 		foundMembers := make([]string, 0)
+	// 		foundDeviceUserName := ""
 
-					for _, member := range members {
-						log.Println("Checking member:", member.String())
-						matched, err := cfg.CheckUsernameTemplate(b.BridgeConfig.BotName, member.String())
-						if err != nil {
-							log.Println("Failed checking username template", err)
-							return
-						}
-						if !matched {
-							continue
-						}
+	// 		for _, member := range members {
+	// 			log.Println("Checking member:", member.String())
+	// 			matched, err := cfg.CheckUsernameTemplate(b.BridgeConfig.BotName, member.String())
+	// 			if err != nil {
+	// 				log.Println("Failed checking username template", err)
+	// 				return
+	// 			}
+	// 			if !matched {
+	// 				continue
+	// 			}
 
-						devices := ClientDevices[b.Client.UserID.Localpart()][b.BridgeConfig.Name]
-						log.Println("Devices:", devices)
+	// 			devices := ClientDevices[b.Client.UserID.Localpart()][b.BridgeConfig.Name]
+	// 			log.Println("Devices:", devices)
 
-						for _, device := range devices {
-							formattedUsername, err := cfg.FormatUsername(b.BridgeConfig.Name, device)
-							if err != nil {
-								log.Println("Failed formatting username", err, device)
-								continue
-							}
-							if member.String() == formattedUsername {
-								foundDevice = true
-								foundDeviceUserName = formattedUsername
-								log.Println("Found device:", foundDeviceUserName)
-								break
-							} else {
-								foundMembers = append(foundMembers, member.String())
-							}
-						}
-					}
+	// 			for _, device := range devices {
+	// 				formattedUsername, err := cfg.FormatUsername(b.BridgeConfig.Name, device)
+	// 				if err != nil {
+	// 					log.Println("Failed formatting username", err, device)
+	// 					continue
+	// 				}
+	// 				if member.String() == formattedUsername {
+	// 					foundDevice = true
+	// 					foundDeviceUserName = formattedUsername
+	// 					log.Println("Found device:", foundDeviceUserName)
+	// 					break
+	// 				} else {
+	// 					foundMembers = append(foundMembers, member.String())
+	// 				}
+	// 			}
+	// 		}
 
-					if foundDevice && len(foundMembers) == 0 {
-						log.Println("Found device but no members, adding device to members", foundDeviceUserName)
-						foundMembers = append(foundMembers, foundDeviceUserName)
-					}
+	// 		if foundDevice && len(foundMembers) == 0 {
+	// 			log.Println("Found device but no members, adding device to members", foundDeviceUserName)
+	// 			foundMembers = append(foundMembers, foundDeviceUserName)
+	// 		}
 
-					if foundDevice && len(foundMembers) > 0 {
-						for _, fMember := range foundMembers {
-							clientDb.StoreRooms(evt.RoomID.String(), b.BridgeConfig.Name, foundDeviceUserName, fMember, false)
-							// log.Println("Stored room:", event.RoomID.String(), b.Name, fMember, false, foundDeviceUserName)
-						}
-					}
-				}
-			}
-		},
-	}
-
-	EventSubscribers = append(EventSubscribers, eventSubscriber)
+	// 		if foundDevice && len(foundMembers) > 0 {
+	// 			for _, fMember := range foundMembers {
+	// 				clientDb.StoreRooms(evt.RoomID.String(), b.BridgeConfig.Name, foundDeviceUserName, fMember, false)
+	// 				// log.Println("Stored room:", event.RoomID.String(), b.Name, fMember, false, foundDeviceUserName)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
 
-func (b *Bridges) GetRoomInvitesDaemon() error {
-	log.Println("Getting room invites for:", b.BridgeConfig.Name, b.RoomID)
+// func (b *Bridges) GetRoomInvitesDaemon() error {
+// 	log.Println("Getting room invites for:", b.BridgeConfig.Name, b.RoomID)
 
-	resp, err := b.Client.SyncRequest(context.Background(), 30000, "", "", true, event.PresenceOnline)
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	resp, err := b.Client.SyncRequest(context.Background(), 30000, "", "", true, event.PresenceOnline)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	for roomID := range resp.Rooms.Invite {
-		log.Printf("You have been invited to room: %s\n", roomID)
-		_, err := b.Client.JoinRoomByID(context.Background(), roomID)
-		if err != nil {
-			log.Println("Failed joining room", err)
-		}
-	}
+// 	for roomID := range resp.Rooms.Invite {
+// 		log.Printf("You have been invited to room: %s\n", roomID)
+// 		_, err := b.Client.JoinRoomByID(context.Background(), roomID)
+// 		if err != nil {
+// 			log.Println("Failed joining room", err)
+// 		}
+// 	}
 
-	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.BridgeConfig.Name, cfg.HomeServerDomain) + "+invites"
-	eventSubscriber := EventSubscriber{
-		Name:    eventSubName,
-		MsgType: nil,
-		Callback: func(evt *event.Event) {
-			// log.Println("Received event:", evt.RoomID, evt.Content.AsMember())
-			room := Rooms{
-				Client: b.Client,
-				ID:     evt.RoomID,
-			}
-			room.GetInvites(evt)
-		},
-	}
+// 	eventSubName := ReverseAliasForEventSubscriber(b.Client.UserID.Localpart(), b.BridgeConfig.Name, cfg.HomeServerDomain) + "+invites"
+// 	eventSubscriber := EventSubscriber{
+// 		Name:    eventSubName,
+// 		MsgType: nil,
+// 		Callback: func(evt *event.Event) {
+// 			// log.Println("Received event:", evt.RoomID, evt.Content.AsMember())
+// 			room := Rooms{
+// 				Client: b.Client,
+// 				ID:     evt.RoomID,
+// 			}
+// 			room.GetInvites(evt)
+// 		},
+// 	}
 
-	EventSubscribers = append(EventSubscribers, eventSubscriber)
+// 	EventSubscribers = append(EventSubscribers, eventSubscriber)
 
-	return nil
-}
+// 	return nil
+// }
 
 func (b *Bridges) Save() error {
 	var clientDb = ClientDB{
@@ -483,7 +509,7 @@ func (b *Bridges) Save() error {
 	}
 
 	// TODO: put device id and other params here
-	if err := clientDb.StoreBridge(b.RoomID.String(), b.BridgeConfig.Name, "", ""); err != nil {
+	if err := clientDb.StoreRoom(b.RoomID.String(), b.BridgeConfig.Name, "", "", true); err != nil {
 		return err
 	}
 

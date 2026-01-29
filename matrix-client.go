@@ -11,10 +11,6 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-type SyncingClients struct {
-	Users map[string]*UserSync
-}
-
 type MatrixClient struct {
 	Client       *mautrix.Client
 	CryptoHelper *cryptohelper.CryptoHelper
@@ -239,43 +235,4 @@ func verifyRecoveryKey(
 	}
 
 	return nil
-}
-
-func (m *MatrixClient) AddBridges() error {
-	// ? User authenticates themselves
-	// ? Bridges are added to users account
-	// ?   read configs for bridges
-	// ?   for(bridges):
-	// ?    If bridges not already added --> add them
-	// ?    addbridge():
-	// ?     invite bridge to join the room - multiple rooms get created
-	// ?     add bridge to database
-
-	conf, err := cfg.getConf()
-	if err != nil {
-		return err
-	}
-
-	bridges := conf.Bridges
-
-	for i, confBridge := range bridges {
-		log.Printf("[+] (%d\\%d) Bridge: %s\n", i+1, len(bridges), confBridge.Name)
-
-		//TODO: CheckRoomExists(client):
-		bridge := Bridges{
-			BridgeConfig: confBridge,
-			Client:       m.Client,
-		}
-		if bridge.RoomID, err = bridge.JoinManagementRooms(); err != nil {
-			return err
-		} else {
-			if err := bridge.Save(); err != nil {
-				return err
-			}
-		}
-		log.Printf("Room created: %s\n", bridge.RoomID)
-	}
-
-	return nil
-
 }

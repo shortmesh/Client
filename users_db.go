@@ -129,32 +129,23 @@ func (clientDb *ClientDB) Init() error {
 	clientDb.connection = db
 
 	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS clients ( 
+	CREATE TABLE IF NOT EXISTS user ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	username TEXT NOT NULL UNIQUE, 
 	password TEXT NOT NULL,
-	accessToken TEXT NOT NULL, 
+	access_token TEXT NOT NULL, 
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
 	CREATE TABLE IF NOT EXISTS rooms ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
-	deviceId TEXT,
-	roomId TEXT NOT NULL,
+	device_id TEXT,
+	room_id TEXT NOT NULL,
 	name TEXT NOT NULL,
-	memberId TEXT NULL,
+	member_id TEXT NULL,
+	is_bridge_bot BOOLEAN NULL,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(roomId)
-	);
-	
-	CREATE TABLE IF NOT EXISTS webhooks (
-	id INTEGER PRIMARY KEY AUTOINCREMENT, 
-	clientUsername TEXT NOT NULL,
-	deviceName TEXT NOT NULL,
-	url TEXT NOT NULL,
-	method TEXT NOT NULL,
-	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(clientUsername, deviceName, url, method)
+	UNIQUE(room_id, name)
 	);
 	`)
 
