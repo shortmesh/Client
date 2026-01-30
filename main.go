@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	_ "sherlock/matrix/docs"
 
@@ -20,6 +21,13 @@ type User struct {
 }
 
 func main() {
+	var programLevel slog.LevelVar
+	programLevel.Set(slog.LevelDebug) // Set initial level to Debug
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: &programLevel, // Use the LevelVar
+	})
+	slog.SetDefault(slog.New(handler))
+
 	if len(os.Args) > 2 {
 		TerminalRoutines()
 		return

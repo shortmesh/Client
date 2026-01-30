@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
+	"runtime/debug"
+	"strings"
 	"sync"
 
 	"maunium.net/go/mautrix"
@@ -150,28 +153,49 @@ func (c *Controller) AddBridges() error {
 }
 
 func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
-	// ? Create room
+	// !Do this only the room has been created already
+	// !Do once and save the roomId against the contact
+	contact = strings.ReplaceAll(contact, "+", "")
+	deviceId = strings.ReplaceAll(deviceId, "+", "")
 
 	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
+	slog.Debug("Contactusername: " + contactUsername)
+	slog.Debug("Deviceusername: " + deviceIdUsername)
 
-	bridge, err := (&Bridges{}).lookupBridgeByName(bridgeName)
+	bridge, err := (&Bridges{
+		Client: c.Client,
+	}).lookupBridgeByName(bridgeName)
 	if err != nil {
 		return nil, err
 	}
 
 	botUsername := bridge.BridgeConfig.BotName
+	slog.Debug("Botusername: " + botUsername)
 
 	roomId, err := (&Rooms{
 		Client:   c.Client,
 		IsBridge: true,
 	}).JoinRoom([]id.UserID{
 		id.UserID(contactUsername),
-		id.UserID(deviceId),
+		id.UserID(deviceIdUsername),
 		id.UserID(botUsername),
 	})
 
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return nil, err
 	}
+
+	// ? Save contact -> room id
+
+	err = (&MatrixClient{Client: c.Client}).SendMessage(roomId, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
 	return &roomId, nil
 }
