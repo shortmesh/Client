@@ -7,7 +7,6 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"maunium.net/go/mautrix/id"
 )
 
 type Keystore struct {
@@ -140,12 +139,12 @@ func (clientDb *ClientDB) Init() error {
 	CREATE TABLE IF NOT EXISTS rooms ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	device_id TEXT,
+	bridge_name TEXT,
 	room_id TEXT NOT NULL,
-	name TEXT NOT NULL,
-	member_id TEXT NULL,
+	contact_name TEXT NULL,
 	is_bridge_bot BOOLEAN NULL,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(room_id, name)
+	UNIQUE(device_id, bridge_name, contact_name)
 	);
 	`)
 
@@ -247,121 +246,6 @@ func (clientDb *ClientDB) Fetch() (string, error) {
 
 func (clientDb *ClientDB) Close() {
 	defer clientDb.connection.Close()
-}
-
-func (clientDb *ClientDB) StoreRooms(
-	roomID string,
-	platformName string,
-	deviceName string,
-	members string,
-	isBridge bool,
-) error {
-	tx, err := clientDb.connection.Begin()
-	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare(
-		`INSERT OR REPLACE INTO rooms (clientUsername, roomID, platformName, deviceName, members, isBridge) values(?,?,?,?,?,?)`,
-	)
-	if err != nil {
-		return err
-	}
-
-	defer stmt.Close()
-
-	_, err = stmt.Exec(clientDb.username, roomID, platformName, deviceName, members, isBridge)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to store room: %w", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-func (clientDb *ClientDB) FetchRooms(roomID string) (Rooms, error) {
-	stmt, err := clientDb.connection.Prepare(
-		"select clientUsername, roomID, platformName, deviceName, members, isBridge from rooms where roomID = ?",
-	)
-	if err != nil {
-		return Rooms{}, err
-	}
-	var clientUsername string
-	var _roomID string
-	var platformName string
-	var deviceName string
-	var members string
-	var isBridge bool
-
-	defer stmt.Close()
-
-	err = stmt.QueryRow(roomID).Scan(&clientUsername, &_roomID, &platformName, &deviceName, &members, &isBridge)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return Rooms{}, nil
-		}
-		return Rooms{}, err
-	}
-
-	var room = Rooms{
-		ID: id.RoomID(_roomID),
-		Members: map[string]string{
-			platformName: members,
-		},
-	}
-
-	return room, err
-}
-
-func (clientDb *ClientDB) FetchRoomsByMembers(members string) ([]Rooms, error) {
-	log.Println("Fetching room members for", members, clientDb.filepath)
-	stmt, err := clientDb.connection.Prepare(
-		"select clientUsername, roomID, platformName, deviceName, members, isBridge from rooms where members = ?",
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(members)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var rooms []Rooms
-	for rows.Next() {
-		var clientUsername string
-		var _roomID string
-		var _platformName string
-		var _deviceName string
-		var _members string
-		var isBridge bool
-
-		err = rows.Scan(&clientUsername, &_roomID, &_platformName, &_deviceName, &_members, &isBridge)
-		if err != nil {
-			return nil, err
-		}
-
-		room := Rooms{
-			ID: id.RoomID(_roomID),
-			Members: map[string]string{
-				_platformName: _members,
-			},
-		}
-		rooms = append(rooms, room)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return rooms, nil
 }
 
 func (clientDb *ClientDB) FetchActiveSessions(username string) ([]byte, time.Time, error) {

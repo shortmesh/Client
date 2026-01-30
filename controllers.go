@@ -139,9 +139,13 @@ func (c *Controller) AddBridges() error {
 			Client:       c.Client,
 		}
 		if bridge.RoomID, err = bridge.JoinManagementRooms(); err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
 			return err
 		} else {
 			if err := bridge.Save(); err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
 				return err
 			}
 		}
@@ -152,19 +156,16 @@ func (c *Controller) AddBridges() error {
 
 }
 
-func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
-	// !Do this only the room has been created already
-	// !Do once and save the roomId against the contact
-	contact = strings.ReplaceAll(contact, "+", "")
-	deviceId = strings.ReplaceAll(deviceId, "+", "")
-
+// !Danger if room already exist, this won't fail but would create a failed room
+// !Have something that records all existing rooms into a db at start
+func createContactRoom(room Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
 	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
 	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
 	slog.Debug("Contactusername: " + contactUsername)
 	slog.Debug("Deviceusername: " + deviceIdUsername)
 
 	bridge, err := (&Bridges{
-		Client: c.Client,
+		Client: room.Client,
 	}).lookupBridgeByName(bridgeName)
 	if err != nil {
 		return nil, err
@@ -174,7 +175,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 	slog.Debug("Botusername: " + botUsername)
 
 	roomId, err := (&Rooms{
-		Client:   c.Client,
+		Client:   room.Client,
 		IsBridge: true,
 	}).JoinRoom([]id.UserID{
 		id.UserID(contactUsername),
@@ -188,9 +189,12 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		return nil, err
 	}
 
-	// ? Save contact -> room id
+	err = room.Save(
+		bridgeName,
+		contact,
+		deviceId,
+	)
 
-	err = (&MatrixClient{Client: c.Client}).SendMessage(roomId, message)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -198,4 +202,44 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 	}
 
 	return &roomId, nil
+
+}
+
+func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
+	contact = strings.ReplaceAll(contact, "+", "")
+	deviceId = strings.ReplaceAll(deviceId, "+", "")
+
+	room := Rooms{Client: c.Client}
+	_, err := room.FetchMessageContact(
+		deviceId,
+		bridgeName,
+		contact,
+	)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	// fmt.Printf("Exists: %v\n", bridge)
+
+	if room.ID == nil {
+		slog.Debug("Creating contact room!")
+		roomId, err := createContactRoom(room, bridgeName, contact, deviceId)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		room.ID = roomId
+	}
+
+	err = (&MatrixClient{Client: c.Client}).SendMessage(*room.ID, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return room.ID, nil
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
+	"runtime/debug"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -11,7 +13,7 @@ import (
 
 type Rooms struct {
 	Client   *mautrix.Client
-	ID       id.RoomID
+	ID       *id.RoomID
 	IsBridge bool
 	Members  map[string]string
 }
@@ -68,7 +70,7 @@ func (r *Rooms) GetRoomMembers(client *mautrix.Client, roomId id.RoomID) ([]id.U
 }
 
 func (r *Rooms) IsManagementRoom(botName string) (bool, error) {
-	members, err := r.Client.JoinedMembers(context.Background(), r.ID)
+	members, err := r.Client.JoinedMembers(context.Background(), *r.ID)
 	if err != nil {
 		return false, err
 	}
@@ -95,7 +97,7 @@ func (r *Rooms) IsManagementRoom(botName string) (bool, error) {
 func (r *Rooms) GetRoomInfo() (string, error) {
 	// Get room name
 	var nameContent event.RoomNameEventContent
-	err := r.Client.StateEvent(context.Background(), r.ID, event.StateRoomName, "", &nameContent)
+	err := r.Client.StateEvent(context.Background(), *r.ID, event.StateRoomName, "", &nameContent)
 	if err != nil {
 		return "", err
 	}
@@ -105,7 +107,7 @@ func (r *Rooms) GetRoomInfo() (string, error) {
 
 func (r *Rooms) GetPowerLevelsUser() (int, error) {
 	var powerLevels event.PowerLevelsEventContent
-	err := r.Client.StateEvent(context.Background(), r.ID, event.StatePowerLevels, "", &powerLevels)
+	err := r.Client.StateEvent(context.Background(), *r.ID, event.StatePowerLevels, "", &powerLevels)
 	if err != nil {
 		return -1, err
 	}
@@ -114,7 +116,7 @@ func (r *Rooms) GetPowerLevelsUser() (int, error) {
 
 func (r *Rooms) GetPowerLevelsEvents() (int, error) {
 	var powerLevels event.PowerLevelsEventContent
-	err := r.Client.StateEvent(context.Background(), r.ID, event.StatePowerLevels, "", &powerLevels)
+	err := r.Client.StateEvent(context.Background(), *r.ID, event.StatePowerLevels, "", &powerLevels)
 	if err != nil {
 		return -1, err
 	}
@@ -125,7 +127,7 @@ func (r *Rooms) GetPowerLevelsEvents() (int, error) {
 func (r *Rooms) IsSpaceRoom() (bool, error) {
 	var createContent event.CreateEventContent
 
-	err := r.Client.StateEvent(context.Background(), r.ID, event.StateCreate, "", &createContent)
+	err := r.Client.StateEvent(context.Background(), *r.ID, event.StateCreate, "", &createContent)
 	if err != nil {
 		return false, err
 	}
@@ -149,7 +151,7 @@ func (r *Rooms) GetInvites(
 		// 	}
 		// }
 
-		_, err := r.Client.JoinRoomByID(context.Background(), r.ID)
+		_, err := r.Client.JoinRoomByID(context.Background(), *r.ID)
 		if err != nil {
 			return err
 		}
@@ -184,6 +186,63 @@ func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
 		return "", err
 	}
 
-	r.ID = resp.RoomID
+	r.ID = &resp.RoomID
 	return resp.RoomID, nil
+}
+
+func (r *Rooms) FetchMessageContact(
+	deviceId,
+	bridgeName,
+	contact string,
+) (*Rooms, error) {
+	var clientDb = ClientDB{
+		username: r.Client.UserID.Localpart(),
+		filepath: "db/" + r.Client.UserID.Localpart() + ".db",
+	}
+
+	if err := clientDb.Init(); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	room, err := clientDb.FetchDeviceBridgeContact(
+		deviceId,
+		bridgeName,
+		contact,
+	)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	r.ID = room.ID
+	return room, nil
+}
+
+func (r *Rooms) Save(
+	bridgeName,
+	contactName,
+	deviceId string,
+) error {
+	var clientDb = ClientDB{
+		username: r.Client.UserID.Localpart(),
+		filepath: "db/" + r.Client.UserID.Localpart() + ".db",
+	}
+
+	if err := clientDb.Init(); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if err := clientDb.StoreRoom(r.ID.String(), bridgeName, contactName, deviceId, false); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
 }

@@ -125,7 +125,7 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		} else {
 			(&Rooms{
 				Client: m.Client,
-				ID:     evt.RoomID,
+				ID:     &evt.RoomID,
 			}).GetInvites(evt)
 		}
 		// log.Printf("%s\n", evt.Type)

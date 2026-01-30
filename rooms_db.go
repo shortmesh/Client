@@ -45,10 +45,48 @@ func (clientDb *ClientDB) FetchRoomByRoomId(roomId string) (*Bridges, error) {
 	return nil, sql.ErrNoRows
 }
 
+func (clientDb *ClientDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact string) (*Rooms, error) {
+	stmt, err := clientDb.connection.Prepare(
+		"select room_id from rooms where device_id = ? AND bridge_name = ? AND contact_name = ? AND is_bridge_bot = ?",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(deviceId, bridgeName, contact, false)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	if rows.Next() {
+		var roomId string
+
+		err = rows.Scan(&roomId)
+		if err != nil {
+			return nil, err
+		}
+
+		_roomId := id.RoomID(roomId)
+		return &Rooms{
+			ID: &_roomId,
+		}, nil
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return nil, sql.ErrNoRows
+}
+
 func (clientDb *ClientDB) FetchRoomByName(name string) ([]*Bridges, error) {
 	log.Println("Fetching bridge rooms for", name)
 	stmt, err := clientDb.connection.Prepare(
-		"select room_id from rooms where name = ? AND is_bridge_bot = ?",
+		"select room_id from rooms where bridge_name = ? AND is_bridge_bot = ?",
 	)
 	if err != nil {
 		return nil, err
@@ -89,7 +127,7 @@ func (clientDb *ClientDB) FetchRoomByName(name string) ([]*Bridges, error) {
 
 func (clientDb *ClientDB) StoreRoom(
 	roomId string,
-	name string,
+	bridgeName string,
 	memberId string,
 	deviceId string,
 	isBridgeBot bool,
@@ -100,7 +138,7 @@ func (clientDb *ClientDB) StoreRoom(
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO rooms (room_id, name, member_id, device_id, is_bridge_bot, timestamp) 
+		INSERT OR REPLACE INTO rooms (device_id, bridge_name, room_id, contact_name, is_bridge_bot, timestamp) 
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
@@ -109,7 +147,7 @@ func (clientDb *ClientDB) StoreRoom(
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(roomId, name, memberId, deviceId, isBridgeBot)
+	_, err = stmt.Exec(deviceId, bridgeName, roomId, memberId, isBridgeBot)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"regexp"
 	"strings"
@@ -135,6 +136,10 @@ func (b *Bridges) lookupBridgeByName(name string) (*Bridges, error) {
 	bridges, err := clientDb.FetchRoomByName(name)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(bridges) < 1 {
+		return nil, errors.New("No bridges found!")
 	}
 
 	bridge := bridges[0]
