@@ -25,12 +25,12 @@ type Controller struct {
 	Client *mautrix.Client
 }
 
-func SyncUsers() {
+func SyncUsers() error {
 	conf, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return
+		return err
 	}
 
 	// ? Read all users from the database
@@ -43,15 +43,16 @@ func SyncUsers() {
 	}
 
 	syncUser(user)
+	return nil
 }
 
-func syncUser(user configs.UsersConfig) {
+func syncUser(user configs.UsersConfig) error {
 	conf, err := configs.GetConf()
 
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return
+		return err
 	}
 
 	client, err := mautrix.NewClient(
@@ -63,10 +64,19 @@ func syncUser(user configs.UsersConfig) {
 		panic(err)
 	}
 
+	err = rooms.ParseRoomSubroutine(client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
 	client.DeviceID = id.DeviceID(conf.User.DeviceId)
 	cryptoHelper, err := SetupCryptoHelper(client)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
 	mc := MatrixClient{
 		Client:       client,
@@ -90,7 +100,9 @@ func syncUser(user configs.UsersConfig) {
 			json, err := json.MarshalIndent(evt, "", "")
 
 			if err != nil {
-				panic(err)
+				slog.Error(err.Error())
+				debug.PrintStack()
+				continue
 			}
 			fmt.Printf("%s\n", json)
 
@@ -102,8 +114,11 @@ func syncUser(user configs.UsersConfig) {
 
 	err = mc.Sync(ch)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
+	return nil
 }
 
 func (c *Controller) AddDevice(bridgeName string) error {

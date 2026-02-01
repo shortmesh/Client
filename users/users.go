@@ -1,6 +1,7 @@
 package users
 
 import (
+	"database/sql"
 	"log/slog"
 	"runtime/debug"
 
@@ -24,11 +25,18 @@ type Users struct {
 	UserID *id.UserID
 }
 
-func GetUserDB(client *mautrix.Client) UsersDB {
-	return UsersDB{
+func GetUserDB(client *mautrix.Client) (*UsersDB, error) {
+	usersDb := UsersDB{
 		Username: client.UserID.Localpart(),
 		Filepath: "db/" + client.UserID.Localpart() + ".db",
 	}
+
+	err := usersDb.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	return &usersDb, err
 }
 
 func GetTypeUser(client *mautrix.Client, userId id.UserID) (UserType, error) {
@@ -52,8 +60,6 @@ func GetTypeUser(client *mautrix.Client, userId id.UserID) (UserType, error) {
 	isDevice, err := devices.IsDevice(client, userId.String())
 
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
 		return -1, err
 	}
 
@@ -63,8 +69,6 @@ func GetTypeUser(client *mautrix.Client, userId id.UserID) (UserType, error) {
 
 	isContact, err := isContact(client, userId.String())
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
 		return -1, err
 	}
 
@@ -79,9 +83,8 @@ func isContact(
 	client *mautrix.Client,
 	contact string,
 ) (bool, error) {
-	usersDb := GetUserDB(client)
-
-	if err := usersDb.Init(); err != nil {
+	usersDb, err := GetUserDB(client)
+	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return false, err
@@ -90,6 +93,9 @@ func isContact(
 	roomId, err := usersDb.fetchIsContact(contact)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return false, err
@@ -108,9 +114,9 @@ func FetchMessageContact(
 	bridgeName,
 	contact string,
 ) (*string, error) {
-	usersDb := GetUserDB(client)
+	usersDb, err := GetUserDB(client)
 
-	if err := usersDb.Init(); err != nil {
+	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err

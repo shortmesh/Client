@@ -68,3 +68,32 @@ func (d *DeviceDB) fetchDevice(deviceId string) (*[]string, error) {
 
 	return nil, sql.ErrNoRows
 }
+
+func (d *DeviceDB) Save(deviceId, bridgeName string) error {
+	tx, err := d.connection.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO devices (device_id, bridge_name) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`)
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(deviceId, bridgeName)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}

@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"regexp"
+	"runtime/debug"
 	"strings"
 
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
@@ -23,13 +26,15 @@ type Bridges struct {
 
 func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 	bridge, err := b.LookupBridgeByRoomId(evt.RoomID.String())
+	slog.Debug("Lookup bridge", "roomdId", evt.RoomID.String())
 	if err != nil || bridge == nil {
 		if bridge == nil {
-			log.Printf("\n- Couldn't find bridge to publish incoming event for room: %s\n", evt.RoomID)
+			slog.Error(err.Error())
 		}
 		return err
 	}
-	log.Println("[+] New notice for bridge", evt.RoomID, evt.Sender, evt.Timestamp, evt.Type)
+	slog.Debug("New bridge event", "roomID", evt.RoomID,
+		"event sender", evt.Sender, "event timestamp", evt.Timestamp, "event type", evt.Type)
 
 	conf, err := configs.GetConf()
 	if err != nil {
@@ -38,33 +43,58 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 
 	for _, confBridge := range conf.Bridges {
 		if confBridge.Name == bridge.BridgeConfig.Name {
-			log.Printf("[+] Found bridge in configs!\n")
+			slog.Debug("[+] Found bridge in configs!\n")
 			b.BridgeConfig = confBridge
 		}
 	}
 
-	log.Printf("[+] Checking for bridge with name: %s\n", bridge.BridgeConfig.Name)
+	slog.Debug("Checking for bridge", "name", bridge.BridgeConfig.Name)
 
 	if evt.Sender != b.Client.UserID {
 		regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
 		matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
 		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
 			return err
 		}
 
 		if matched {
-			// TODO: something important with the new devices added
-			// Successfully logged in as +123456789
-			log.Println("[+] Device added successfully....")
+			deviceId := strings.Fields(evt.Content.AsMessage().Body)[0]
+			(&devices.Devices{
+				Client:     b.Client,
+				DeviceId:   deviceId,
+				BridgeName: bridge.BridgeConfig.Name,
+			}).Save()
+			slog.Debug("Saved new device", "name", deviceId)
+		}
+
+		// 123456789 (+123456789) - CONNECTED
+		regexPattern = strings.ReplaceAll(b.BridgeConfig.Cmd["list-logins"], "%s", ".*")
+		matched, err = regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+
+		if matched {
+			deviceId := strings.Fields(evt.Content.AsMessage().Body)[0]
+			(&devices.Devices{
+				Client:     b.Client,
+				DeviceId:   deviceId,
+				BridgeName: bridge.BridgeConfig.Name,
+			}).Save()
+			slog.Debug("Saved new device", "name", deviceId)
 		}
 	}
 	return nil
 }
 
 func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
-	roomsDb := rooms.GetRoomDb(b.Client)
+	roomsDb, err := rooms.GetRoomDb(b.Client)
 
-	if err := roomsDb.Init(); err != nil {
+	if err != nil {
 		log.Println("Error initializing client db:", err)
 		return nil, err
 	}
@@ -99,9 +129,9 @@ func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
 }
 
 func (b *Bridges) LookupBridgeByRoomId(roomId string) (*Bridges, error) {
-	roomsDb := rooms.GetRoomDb(b.Client)
+	roomsDb, err := rooms.GetRoomDb(b.Client)
 
-	if err := roomsDb.Init(); err != nil {
+	if err != nil {
 		log.Println("Error initializing client db:", err)
 		return nil, err
 	}
@@ -194,38 +224,15 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 	return roomId, nil
 }
 
-func (b *Bridges) CreateContactRooms() error {
-	roomsDb := rooms.GetRoomDb(b.Client)
-	if err := roomsDb.Init(); err != nil {
-		log.Println("Error initializing client db:", err)
-		return err
-	}
-
-	cfg, err := configs.GetConf()
-	if err != nil {
-		return err
-	}
-
-	eventSubName := configs.ReverseAliasForEventSubscriber(
-		b.Client.UserID.Localpart(),
-		b.BridgeConfig.Name,
-		cfg.HomeServerDomain,
-	)
-	eventSubName = eventSubName + "+join"
-
-	return nil
-}
-
 func (b *Bridges) Save() error {
-	roomsDb := rooms.GetRoomDb(b.Client)
-
-	if err := roomsDb.Init(); err != nil {
+	roomsDb, err := rooms.GetRoomDb(b.Client)
+	if err != nil {
 		log.Println("Error initializing client db:", err)
 		return err
 	}
 
 	// TODO: put device id and other params here
-	if err := roomsDb.StoreRoom(b.RoomID.String(), b.BridgeConfig.Name, "", "", true); err != nil {
+	if err := roomsDb.Save(b.RoomID.String(), b.BridgeConfig.Name, "", "", true); err != nil {
 		return err
 	}
 

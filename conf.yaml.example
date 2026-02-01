@@ -28,6 +28,7 @@ bridges:
       cancel: "!wa cancel"
       devices: "!wa list-logins"
       ongoing: "Scan the QR code with the WhatsApp mobile app to log in"
+      list-logins: "%s (+s) - CONNECTED"
   - name: signal
     botname: "@signalbot:relaysms.me"
     username_template: "signal_{{.}}"

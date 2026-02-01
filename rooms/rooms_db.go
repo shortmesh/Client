@@ -3,8 +3,6 @@ package rooms
 import (
 	"database/sql"
 	"log"
-
-	"maunium.net/go/mautrix"
 )
 
 type RoomsDB struct {
@@ -40,17 +38,10 @@ func (r *RoomsDB) Init() error {
 	return err
 }
 
-func GetRoomDb(client *mautrix.Client) RoomsDB {
-	return RoomsDB{
-		Username: client.UserID.Localpart(),
-		Filepath: "db/" + client.UserID.Localpart() + ".db",
-	}
-}
-
 func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
 	log.Println("Fetching bridge rooms for", roomId)
 	stmt, err := r.connection.Prepare(
-		"select name from rooms where room_id = ?",
+		"select bridge_name from rooms where room_id = ?",
 	)
 	if err != nil {
 		return "", err
@@ -118,7 +109,7 @@ func (r *RoomsDB) FetchRoomByName(name string) (*[]string, error) {
 	return &roomIds, nil
 }
 
-func (r *RoomsDB) StoreRoom(
+func (r *RoomsDB) Save(
 	roomId string,
 	bridgeName string,
 	memberId string,
