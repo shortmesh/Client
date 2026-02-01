@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"runtime/debug"
 
+	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/rooms"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
@@ -81,8 +83,7 @@ func (m *MatrixClient) Create(username string, password string) (string, error) 
 
 func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) {
 	// remember to use a secure key for the pickle key in production
-
-	conf, err := cfg.getConf()
+	conf, err := configs.GetConf()
 	if err != nil {
 		panic(err)
 	}
@@ -123,7 +124,7 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 			machine.HandleToDeviceEvent(ctx, evt)
 			log.Printf("Handled to device...")
 		} else {
-			(&Rooms{
+			(&rooms.Rooms{
 				Client: m.Client,
 				ID:     &evt.RoomID,
 			}).GetInvites(evt)

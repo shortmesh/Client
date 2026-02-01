@@ -1,4 +1,4 @@
-package main
+package configs
 
 import (
 	"context"
@@ -12,23 +12,9 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-type BridgeConfig struct {
-	Name                    string            `yaml:"name"`
-	BotName                 string            `yaml:"botname"`
-	UsernameTemplate        string            `yaml:"username_template"`
-	DisplayUsernameTemplate string            `yaml:"display_username_template"`
-	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
-}
-
 type Tls struct {
 	Crt string `yaml:"crt"`
 	Key string `yaml:"key"`
-}
-
-type ServerWebsocket struct {
-	Port string `yaml:"port"`
-	Host string `yaml:"host"`
-	Tls  Tls    `yaml:"tls"`
 }
 
 type Server struct {
@@ -37,26 +23,44 @@ type Server struct {
 	Tls  Tls    `yaml:"tls"`
 }
 
-type Conf struct {
-	Server           Server          `yaml:"server"`
-	Websocket        ServerWebsocket `yaml:"websocket"`
-	KeystoreFilepath string          `yaml:"keystore_filepath"`
-	HomeServer       string          `yaml:"homeserver"`
-	HomeServerDomain string          `yaml:"homeserver_domain"`
-	Bridges          []BridgeConfig  `yaml:"bridges"`
-	User             User            `yaml:"user"`
-	PickleKey        string          `yaml:"pickle_key"`
+type BridgeConfig struct {
+	Name                    string            `yaml:"name"`
+	BotName                 string            `yaml:"botname"`
+	UsernameTemplate        string            `yaml:"username_template"`
+	DisplayUsernameTemplate string            `yaml:"display_username_template"`
+	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
 }
 
-func (c *Conf) getConf() (*Conf, error) {
+type UsersConfig struct {
+	Username         string `yaml:"username"`
+	Password         string `yaml:"password"`
+	AccessToken      string `yaml:"access_token"`
+	RecoveryKey      string `yaml:"recovery_key"`
+	DeviceId         string `yaml:"device_id"`
+	HomeServer       string `yaml:"homeserver"`
+	HomeServerDomain string `yaml:"homeserver_domain"`
+}
+
+type Conf struct {
+	Server           Server         `yaml:"server"`
+	KeystoreFilepath string         `yaml:"keystore_filepath"`
+	HomeServer       string         `yaml:"homeserver"`
+	HomeServerDomain string         `yaml:"homeserver_domain"`
+	Bridges          []BridgeConfig `yaml:"bridges"`
+	User             UsersConfig    `yaml:"user"`
+	PickleKey        string         `yaml:"pickle_key"`
+}
+
+func GetConf() (*Conf, error) {
+	c := &Conf{}
 	yamlFile, err := os.ReadFile("conf.yaml")
 	if err != nil {
-		return c, err
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
-		return c, err
+		return nil, err
 	}
 
 	return c, nil

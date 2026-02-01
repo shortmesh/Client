@@ -1,4 +1,4 @@
-package main
+package rooms
 
 import (
 	"context"
@@ -35,15 +35,15 @@ type Rooms struct {
 
 // func (r *Rooms) IsBridgeMessage(evt *event.Event) (bool, error) {
 // 	if evt.Type == event.EventMessage {
-// 		var clientDB ClientDB = ClientDB{
+// 		var UsersDB UsersDB = UsersDB{
 // 			username: r.Client.UserID.Localpart(),
 // 			filepath: "db/" + r.Client.UserID.Localpart() + ".db",
 // 		}
 
-// 		clientDB.Init()
-// 		defer clientDB.Close()
+// 		UsersDB.Init()
+// 		defer UsersDB.Close()
 
-// 		room, err := clientDB.FetchRooms(evt.RoomID.String())
+// 		room, err := UsersDB.FetchRooms(evt.RoomID.String())
 
 // 		if err != nil {
 // 			return false, err
@@ -54,8 +54,8 @@ type Rooms struct {
 // 	return false, nil
 // }
 
-func (r *Rooms) GetRoomMembers(client *mautrix.Client, roomId id.RoomID) ([]id.UserID, error) {
-	members, err := client.JoinedMembers(context.Background(), roomId)
+func (r *Rooms) GetRoomMembers() ([]id.UserID, error) {
+	members, err := r.Client.JoinedMembers(context.Background(), *r.ID)
 
 	if err != nil {
 		return nil, err
@@ -190,59 +190,62 @@ func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
 	return resp.RoomID, nil
 }
 
-func (r *Rooms) FetchMessageContact(
-	deviceId,
-	bridgeName,
-	contact string,
-) (*Rooms, error) {
-	var clientDb = ClientDB{
-		username: r.Client.UserID.Localpart(),
-		filepath: "db/" + r.Client.UserID.Localpart() + ".db",
-	}
-
-	if err := clientDb.Init(); err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	room, err := clientDb.FetchDeviceBridgeContact(
-		deviceId,
-		bridgeName,
-		contact,
-	)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	r.ID = room.ID
-	return room, nil
-}
-
 func (r *Rooms) Save(
 	bridgeName,
 	contactName,
 	deviceId string,
 ) error {
-	var clientDb = ClientDB{
-		username: r.Client.UserID.Localpart(),
-		filepath: "db/" + r.Client.UserID.Localpart() + ".db",
-	}
+	roomsDb := GetRoomDb(r.Client)
 
-	if err := clientDb.Init(); err != nil {
+	if err := roomsDb.Init(); err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	if err := clientDb.StoreRoom(r.ID.String(), bridgeName, contactName, deviceId, false); err != nil {
+	if err := roomsDb.StoreRoom(r.ID.String(), bridgeName, contactName, deviceId, false); err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
 	return nil
+}
+
+func parseRooms(client *mautrix.Client) {
+	// ? for each room
+	// ?   read all room patterns
+	// ?   add important room to db. (bridge_bot, contact_messaging)
+	ctx := context.Background()
+	rooms, err := client.JoinedRooms(ctx)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return
+	}
+
+	slog.Debug("User details", "num_rooms", len(rooms.JoinedRooms))
+
+	for _, roomId := range rooms.JoinedRooms {
+		room := Rooms{
+			Client: client,
+			ID:     &roomId,
+		}
+		members, err := room.GetRoomMembers()
+
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return
+		}
+
+		slog.Debug("User details", "members_in_room", len(members))
+
+		if len(members) == 4 {
+			// ? contact communication room?
+			// ? client, bridgeBot, device, some contact
+		} else if len(members) == 2 {
+			// ? bridge bot room?
+		}
+	}
 }

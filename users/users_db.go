@@ -1,4 +1,4 @@
-package main
+package users
 
 import (
 	"database/sql"
@@ -7,42 +7,17 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/shortmesh/core/configs"
 )
 
-type Keystore struct {
+type UsersDB struct {
 	connection *sql.DB
-	filepath   string
+	Username   string
+	Filepath   string
 }
 
-type ClientDB struct {
-	connection *sql.DB
-	username   string
-	filepath   string
-}
-
-func (ks *Keystore) Init() {
-	db, err := sql.Open("sqlite3", ks.filepath)
-	if err != nil {
-		panic(err)
-	}
-	ks.connection = db
-
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS users ( 
-		id INTEGER PRIMARY KEY AUTOINCREMENT, 
-		username TEXT NOT NULL UNIQUE, 
-		accessToken TEXT NOT NULL,
-		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	`)
-
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (ks *Keystore) CreateUser(username string, accessToken string) error {
-	tx, err := ks.connection.Begin()
+func (u *UsersDB) CreateUser(username string, accessToken string) error {
+	tx, err := u.connection.Begin()
 	if err != nil {
 		return err
 	}
@@ -67,10 +42,10 @@ func (ks *Keystore) CreateUser(username string, accessToken string) error {
 	return nil
 }
 
-func (ks *Keystore) FetchUser(username string) (User, error) {
-	stmt, err := ks.connection.Prepare("select id, username, accessToken from users where username = ?")
+func (u *UsersDB) FetchUser(username string) (*configs.UsersConfig, error) {
+	stmt, err := u.connection.Prepare("select id, username, accessToken from users where username = ?")
 	if err != nil {
-		return User{}, err
+		return nil, err
 	}
 
 	defer stmt.Close()
@@ -80,10 +55,10 @@ func (ks *Keystore) FetchUser(username string) (User, error) {
 	var _accessToken string
 	err = stmt.QueryRow(username).Scan(&id, &_username, &_accessToken)
 	if err != nil {
-		return User{}, err
+		return nil, err
 	}
 
-	return User{Username: _username, AccessToken: _accessToken}, nil
+	return &configs.UsersConfig{Username: _username, AccessToken: _accessToken}, nil
 }
 
 // func (ks *Keystore) FetchAllUsers() ([]Users, error) {
@@ -119,13 +94,13 @@ func (ks *Keystore) FetchUser(username string) (User, error) {
 // }
 
 // https://github.com/mattn/go-sqlite3/blob/v1.14.28/_example/simple/simple.go
-func (clientDb *ClientDB) Init() error {
-	db, err := sql.Open("sqlite3", clientDb.filepath)
+func (UsersDB *UsersDB) Init() error {
+	db, err := sql.Open("sqlite3", UsersDB.Filepath)
 	if err != nil {
 		return err
 	}
 
-	clientDb.connection = db
+	UsersDB.connection = db
 
 	_, err = db.Exec(`
 	CREATE TABLE IF NOT EXISTS user ( 
@@ -135,17 +110,6 @@ func (clientDb *ClientDB) Init() error {
 	access_token TEXT NOT NULL, 
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-
-	CREATE TABLE IF NOT EXISTS rooms ( 
-	id INTEGER PRIMARY KEY AUTOINCREMENT, 
-	device_id TEXT,
-	bridge_name TEXT,
-	room_id TEXT NOT NULL,
-	contact_name TEXT NULL,
-	is_bridge_bot BOOLEAN NULL,
-	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(device_id, bridge_name, contact_name)
-	);
 	`)
 
 	if err != nil {
@@ -154,11 +118,11 @@ func (clientDb *ClientDB) Init() error {
 	return err
 }
 
-func (clientDb *ClientDB) AuthenticateAccessToken(username string, accessToken string) (bool, error) {
+func (UsersDB *UsersDB) AuthenticateAccessToken(username string, accessToken string) (bool, error) {
 	query := `SELECT COUNT(*) FROM clients WHERE username = ? AND accessToken = ?`
 
 	var count int
-	err := clientDb.connection.QueryRow(query, username, accessToken).Scan(&count)
+	err := UsersDB.connection.QueryRow(query, username, accessToken).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("authentication query failed: %w", err)
 	}
@@ -172,11 +136,11 @@ func (clientDb *ClientDB) AuthenticateAccessToken(username string, accessToken s
 	return true, nil
 }
 
-func (clientDb *ClientDB) Authenticate(username string, password string) (bool, error) {
+func (UsersDB *UsersDB) Authenticate(username string, password string) (bool, error) {
 	query := `SELECT COUNT(*) FROM clients WHERE username = ? AND password = ?`
 
 	var count int
-	err := clientDb.connection.QueryRow(query, username, password).Scan(&count)
+	err := UsersDB.connection.QueryRow(query, username, password).Scan(&count)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			log.Printf("[-] Authentication failed for user: %s", username)
@@ -194,8 +158,8 @@ func (clientDb *ClientDB) Authenticate(username string, password string) (bool, 
 	return true, nil
 }
 
-func (clientDb *ClientDB) Store(accessToken string, password string) error {
-	tx, err := clientDb.connection.Begin()
+func (UsersDB *UsersDB) Store(accessToken string, password string) error {
+	tx, err := UsersDB.connection.Begin()
 	if err != nil {
 		return err
 	}
@@ -210,7 +174,7 @@ func (clientDb *ClientDB) Store(accessToken string, password string) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(clientDb.username, accessToken, password)
+	_, err = stmt.Exec(UsersDB.Username, accessToken, password)
 	if err != nil {
 		return err
 	}
@@ -223,9 +187,9 @@ func (clientDb *ClientDB) Store(accessToken string, password string) error {
 	return nil
 }
 
-func (clientDb *ClientDB) Fetch() (string, error) {
-	fmt.Println("- Fetching username:", clientDb.filepath)
-	stmt, err := clientDb.connection.Prepare("select accessToken from clients where username = ?")
+func (UsersDB *UsersDB) Fetch() (string, error) {
+	fmt.Println("- Fetching username:", UsersDB.Filepath)
+	stmt, err := UsersDB.connection.Prepare("select accessToken from clients where username = ?")
 	var accessToken string
 
 	if err != nil {
@@ -234,7 +198,7 @@ func (clientDb *ClientDB) Fetch() (string, error) {
 
 	defer stmt.Close()
 
-	err = stmt.QueryRow(clientDb.username).Scan(&accessToken)
+	err = stmt.QueryRow(UsersDB.Username).Scan(&accessToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return accessToken, nil
@@ -244,12 +208,12 @@ func (clientDb *ClientDB) Fetch() (string, error) {
 	return accessToken, err
 }
 
-func (clientDb *ClientDB) Close() {
-	defer clientDb.connection.Close()
+func (UsersDB *UsersDB) Close() {
+	defer UsersDB.connection.Close()
 }
 
-func (clientDb *ClientDB) FetchActiveSessions(username string) ([]byte, time.Time, error) {
-	stmt, err := clientDb.connection.Prepare("select sessions, sessionsTimestamp from rooms where clientUsername = ? and isBridge = 1")
+func (UsersDB *UsersDB) FetchActiveSessions(username string) ([]byte, time.Time, error) {
+	stmt, err := UsersDB.connection.Prepare("select sessions, sessionsTimestamp from rooms where clientUsername = ? and isBridge = 1")
 	if err != nil {
 		return []byte{}, time.Time{}, err
 	}
@@ -264,8 +228,8 @@ func (clientDb *ClientDB) FetchActiveSessions(username string) ([]byte, time.Tim
 	return sessions, sessionsTimestamp, nil
 }
 
-func (clientDb *ClientDB) StoreActiveSessions(username string, sessions []byte) error {
-	tx, err := clientDb.connection.Begin()
+func (UsersDB *UsersDB) StoreActiveSessions(username string, sessions []byte) error {
+	tx, err := UsersDB.connection.Begin()
 	if err != nil {
 		return err
 	}
@@ -290,8 +254,8 @@ func (clientDb *ClientDB) StoreActiveSessions(username string, sessions []byte) 
 	return nil
 }
 
-func (clientDb *ClientDB) RemoveActiveSessions(username string) error {
-	tx, err := clientDb.connection.Begin()
+func (UsersDB *UsersDB) RemoveActiveSessions(username string) error {
+	tx, err := UsersDB.connection.Begin()
 	if err != nil {
 		return err
 	}
@@ -316,16 +280,36 @@ func (clientDb *ClientDB) RemoveActiveSessions(username string) error {
 	return nil
 }
 
-func IsActiveSessionsExpired(clientDb *ClientDB, username string) bool {
-	sessions, sessionsTimestamp, err := clientDb.FetchActiveSessions(username)
+func (UsersDB *UsersDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact string) (*string, error) {
+	stmt, err := UsersDB.connection.Prepare(
+		"select room_id from rooms where device_id = ? AND bridge_name = ? AND contact_name = ? AND is_bridge_bot = ?",
+	)
 	if err != nil {
-		return true
+		return nil, err
 	}
 
-	if sessionsTimestamp.IsZero() || len(sessions) == 0 {
-		return true
+	defer stmt.Close()
+
+	rows, err := stmt.Query(deviceId, bridgeName, contact, false)
+	if err != nil {
+		return nil, err
 	}
 
-	now := time.Now()
-	return now.After(sessionsTimestamp.Add(16 * time.Second))
+	defer rows.Close()
+
+	if rows.Next() {
+		var roomId string
+
+		err = rows.Scan(&roomId)
+		if err != nil {
+			return nil, err
+		}
+		return &roomId, nil
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return nil, sql.ErrNoRows
 }

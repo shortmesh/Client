@@ -4,21 +4,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	_ "sherlock/matrix/docs"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shortmesh/core/apis"
+	"github.com/shortmesh/core/clients"
+	"github.com/shortmesh/core/cmd"
+	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/rabbitmq"
 	// "maunium.net/go/mautrix/id"
 )
-
-type User struct {
-	Username         string `yaml:"username"`
-	Password         string `yaml:"password"`
-	AccessToken      string `yaml:"access_token"`
-	RecoveryKey      string `yaml:"recovery_key"`
-	DeviceId         string `yaml:"device_id"`
-	HomeServer       string `yaml:"homeserver"`
-	HomeServerDomain string `yaml:"homeserver_domain"`
-}
 
 func main() {
 	var programLevel slog.LevelVar
@@ -29,17 +24,13 @@ func main() {
 	slog.SetDefault(slog.New(handler))
 
 	if len(os.Args) > 2 {
-		TerminalRoutines()
+		clients.TerminalRoutines()
 		return
 	}
 
-	if cfgError != nil {
-		panic(cfgError)
-	}
-
-	go SyncUsers()
+	go cmd.SyncUsers()
 	go RestAPIRoutines()
-	go RabbitMQReceiver()
+	go rabbitmq.RabbitMQReceiver()
 
 	select {}
 }
@@ -62,10 +53,16 @@ func RestAPIRoutines() {
 		c.Next()
 	})
 
-	router.POST("/", APICreate)
-	router.POST("/login", APILogin)
-	router.POST("/:platform/devices", APIAddDevice)
+	router.POST("/", apis.APICreate)
+	router.POST("/login", apis.APILogin)
+	router.POST("/:platform/devices", apis.APIAddDevice)
 
+	cfg, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return
+	}
 	host := cfg.Server.Host
 	port := cfg.Server.Port
 

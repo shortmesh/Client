@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	// 	"context"
@@ -12,6 +12,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/shortmesh/core/bridges"
+	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/rooms"
+	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -21,24 +25,33 @@ type Controller struct {
 	Client *mautrix.Client
 }
 
-var cfg, cfgError = (&Conf{}).getConf()
-
-var ks = Keystore{
-	filepath: cfg.KeystoreFilepath,
-}
-
 func SyncUsers() {
-	conf, err := cfg.getConf()
-
+	conf, err := configs.GetConf()
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return
 	}
-	user := User{
+
+	// ? Read all users from the database
+	user := configs.UsersConfig{
 		Username:         conf.User.Username,
 		AccessToken:      conf.User.AccessToken,
 		RecoveryKey:      conf.User.RecoveryKey,
 		HomeServer:       conf.HomeServer,
 		HomeServerDomain: conf.HomeServerDomain,
+	}
+
+	syncUser(user)
+}
+
+func syncUser(user configs.UsersConfig) {
+	conf, err := configs.GetConf()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return
 	}
 
 	client, err := mautrix.NewClient(
@@ -62,8 +75,6 @@ func SyncUsers() {
 
 	mc.Client.Crypto = cryptoHelper
 
-	fmt.Printf("[+] DeviceID: %s\n", mc.Client.DeviceID)
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -83,7 +94,7 @@ func SyncUsers() {
 			}
 			fmt.Printf("%s\n", json)
 
-			go (&Bridges{
+			go (&bridges.Bridges{
 				Client: client,
 			}).ProcessIncomingMessages(evt)
 		}
@@ -96,9 +107,9 @@ func SyncUsers() {
 }
 
 func (c *Controller) AddDevice(bridgeName string) error {
-	bridge, err := (&Bridges{
+	bridge, err := (&bridges.Bridges{
 		Client: c.Client,
-	}).lookupBridgeByName(bridgeName)
+	}).LookupBridgeByName(bridgeName)
 	// log.Printf("Found bridge room: %s\n", bridge.RoomID)
 
 	if err != nil {
@@ -123,31 +134,32 @@ func (c *Controller) AddBridges() error {
 	// ?     invite bridge to join the room - multiple rooms get created
 	// ?     add bridge to database
 
-	conf, err := cfg.getConf()
+	conf, err := configs.GetConf()
 	if err != nil {
 		return err
 	}
 
-	bridges := conf.Bridges
+	bridgeConfs := conf.Bridges
 
-	for i, confBridge := range bridges {
-		log.Printf("[+] (%d\\%d) Bridge: %s\n", i+1, len(bridges), confBridge.Name)
+	for i, confBridge := range bridgeConfs {
+		log.Printf("[+] (%d\\%d) Bridge: %s\n", i+1, len(bridgeConfs), confBridge.Name)
 
 		//TODO: CheckRoomExists(client):
-		bridge := Bridges{
+		bridge := bridges.Bridges{
 			BridgeConfig: confBridge,
 			Client:       c.Client,
 		}
-		if bridge.RoomID, err = bridge.JoinManagementRooms(); err != nil {
+		roomId, err := bridge.JoinManagementRooms()
+		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
 			return err
-		} else {
-			if err := bridge.Save(); err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return err
-			}
+		}
+		bridge.RoomID = &roomId
+		if err := bridge.Save(); err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
 		}
 		log.Printf("Room created: %s\n", bridge.RoomID)
 	}
@@ -158,15 +170,21 @@ func (c *Controller) AddBridges() error {
 
 // !Danger if room already exist, this won't fail but would create a failed room
 // !Have something that records all existing rooms into a db at start
-func createContactRoom(room Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
+func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
+	cfg, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
 	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
 	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
 	slog.Debug("Contactusername: " + contactUsername)
 	slog.Debug("Deviceusername: " + deviceIdUsername)
 
-	bridge, err := (&Bridges{
+	bridge, err := (&bridges.Bridges{
 		Client: room.Client,
-	}).lookupBridgeByName(bridgeName)
+	}).LookupBridgeByName(bridgeName)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +192,7 @@ func createContactRoom(room Rooms, bridgeName, contact, deviceId string) (*id.Ro
 	botUsername := bridge.BridgeConfig.BotName
 	slog.Debug("Botusername: " + botUsername)
 
-	roomId, err := (&Rooms{
+	roomId, err := (&rooms.Rooms{
 		Client:   room.Client,
 		IsBridge: true,
 	}).JoinRoom([]id.UserID{
@@ -209,8 +227,8 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 	contact = strings.ReplaceAll(contact, "+", "")
 	deviceId = strings.ReplaceAll(deviceId, "+", "")
 
-	room := Rooms{Client: c.Client}
-	_, err := room.FetchMessageContact(
+	roomIdStr, err := users.FetchMessageContact(
+		c.Client,
 		deviceId,
 		bridgeName,
 		contact,
@@ -221,7 +239,11 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		debug.PrintStack()
 		return nil, err
 	}
-	// fmt.Printf("Exists: %v\n", bridge)
+	roomId := id.RoomID(*roomIdStr)
+	room := rooms.Rooms{
+		Client: c.Client,
+		ID:     &roomId,
+	}
 
 	if room.ID == nil {
 		slog.Debug("Creating contact room!")

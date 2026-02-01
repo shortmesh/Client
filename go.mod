@@ -1,4 +1,5 @@
-module sherlock/matrix
+// module sherlock/matrix
+module github.com/shortmesh/core
 
 go 1.24.3
 

@@ -1,10 +1,12 @@
-package main
+package clients
 
 import (
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/shortmesh/core/cmd"
+	"github.com/shortmesh/core/configs"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
@@ -16,7 +18,7 @@ import (
 
 // EXPLORATION:
 func sendMessage(client *mautrix.Client, deviceId, bridgeName, contact, message string) {
-	if _, err := (&Controller{
+	if _, err := (&cmd.Controller{
 		Client: client,
 	}).SendMessage(bridgeName, deviceId, contact, message); err != nil {
 		log.Panic(err)
@@ -25,7 +27,7 @@ func sendMessage(client *mautrix.Client, deviceId, bridgeName, contact, message 
 
 // EXPLORATION:
 func addDevice(client *mautrix.Client, bridgeName string) {
-	if err := (&Controller{
+	if err := (&cmd.Controller{
 		Client: client,
 	}).AddDevice(bridgeName); err != nil {
 		log.Panic(err)
@@ -34,7 +36,7 @@ func addDevice(client *mautrix.Client, bridgeName string) {
 
 // EXPLORATION:
 func addBridges(client *mautrix.Client) {
-	if err := (&Controller{
+	if err := (&cmd.Controller{
 		Client: client,
 	}).AddBridges(); err != nil {
 		log.Panic(err)
@@ -43,10 +45,10 @@ func addBridges(client *mautrix.Client) {
 
 // EXPLORATION:
 func authenticate(client *mautrix.Client) {
-	conf, err := cfg.getConf()
+	conf, err := configs.GetConf()
 	password := conf.User.Password
 
-	if _, err := (&MatrixClient{
+	if _, err := (&cmd.MatrixClient{
 		Client: client,
 	}).Login(password); err != nil {
 		log.Panic(err)
@@ -55,23 +57,23 @@ func authenticate(client *mautrix.Client) {
 	fmt.Printf("[+] DeviceID: %s\n", client.DeviceID)
 	fmt.Printf("[+] AccessToken: %s\n", client.AccessToken)
 
-	cryptoHelper, err := SetupCryptoHelper(client)
+	cryptoHelper, err := cmd.SetupCryptoHelper(client)
 	if err != nil {
 		panic(err)
 	}
 
-	recoverykey := GenerateAndUploadClientKeys(cryptoHelper)
+	recoverykey := cmd.GenerateAndUploadClientKeys(cryptoHelper)
 	fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
 }
 
 func TerminalRoutines() {
-	conf, err := cfg.getConf()
+	conf, err := configs.GetConf()
 
 	if err != nil {
 		panic(err)
 	}
 
-	user := User{
+	user := configs.UsersConfig{
 		Username:         conf.User.Username,
 		AccessToken:      conf.User.AccessToken,
 		RecoveryKey:      conf.User.RecoveryKey,
