@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 
+	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -212,40 +213,125 @@ func (r *Rooms) Save(
 	return nil
 }
 
-func parseRooms(client *mautrix.Client) {
-	// ? for each room
-	// ?   read all room patterns
-	// ?   add important room to db. (bridge_bot, contact_messaging)
+func isContactRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
+	room := Rooms{
+		Client: client,
+		ID:     roomId,
+	}
+	members, err := room.GetRoomMembers()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	slog.Debug("User details", "members_in_room", len(members))
+
+	if len(members) == 4 {
+		// ? contact communication room?
+		// ? client, bridgeBot, device, some contact
+		isUser := false
+		isBridgeBot := false
+		isDevice := false
+		isContact := false
+		for _, member := range members {
+			userType, err := users.GetTypeUser(client, member)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return false, err
+			}
+			switch userType {
+			case users.User:
+				isUser = true
+			case users.BridgeBot:
+				isBridgeBot = true
+			case users.Device:
+				isDevice = true
+			case users.Contact:
+				isContact = true
+			}
+		}
+
+		if isUser && isBridgeBot && isDevice && isContact {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func isBridgeBotRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
+	room := Rooms{
+		Client: client,
+		ID:     roomId,
+	}
+	members, err := room.GetRoomMembers()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	slog.Debug("User details", "members_in_room", len(members))
+
+	if len(members) == 2 {
+		isUser := false
+		isBridgeBot := false
+		for _, member := range members {
+			userType, err := users.GetTypeUser(client, member)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return false, err
+			}
+			switch userType {
+			case users.User:
+				isUser = true
+			case users.BridgeBot:
+				isBridgeBot = true
+			}
+		}
+
+		if isUser && isBridgeBot {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func ParseRoomSubroutine(client *mautrix.Client) error {
 	ctx := context.Background()
 	rooms, err := client.JoinedRooms(ctx)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return
+		return err
 	}
 
 	slog.Debug("User details", "num_rooms", len(rooms.JoinedRooms))
 
 	for _, roomId := range rooms.JoinedRooms {
-		room := Rooms{
-			Client: client,
-			ID:     &roomId,
-		}
-		members, err := room.GetRoomMembers()
-
+		isContactRoom, err := isContactRoom(client, &roomId)
 		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return
+			return err
 		}
 
-		slog.Debug("User details", "members_in_room", len(members))
+		// TODO: get bridge name
 
-		if len(members) == 4 {
-			// ? contact communication room?
-			// ? client, bridgeBot, device, some contact
-		} else if len(members) == 2 {
-			// ? bridge bot room?
+		if isContactRoom {
+		}
+
+		isBridgeBotRoom, err := isBridgeBotRoom(client, &roomId)
+		if err != nil {
+			return err
+		}
+
+		if isBridgeBotRoom {
+			// TODO
 		}
 	}
+
+	return nil
 }
