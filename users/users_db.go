@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -281,6 +282,7 @@ func (UsersDB *UsersDB) RemoveActiveSessions(username string) error {
 }
 
 func (UsersDB *UsersDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact string) (*string, error) {
+	slog.Debug("Fetching bridge", "deviceId", deviceId, "bridgeNam", bridgeName, "contact", contact)
 	stmt, err := UsersDB.connection.Prepare(
 		"select room_id from rooms where device_id = ? AND bridge_name = ? AND contact_name = ? AND is_bridge_bot = ?",
 	)

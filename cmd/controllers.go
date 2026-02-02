@@ -9,7 +9,6 @@ import (
 	"log"
 	"log/slog"
 	"runtime/debug"
-	"strings"
 	"sync"
 
 	"github.com/shortmesh/core/bridges"
@@ -240,14 +239,33 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 }
 
 func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
-	contact = strings.ReplaceAll(contact, "+", "")
-	deviceId = strings.ReplaceAll(deviceId, "+", "")
+	// contact = strings.ReplaceAll(contact, "+", "")
+	cfg, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
 
 	roomIdStr, err := users.FetchMessageContact(
 		c.Client,
-		deviceId,
+		deviceIdUsername,
 		bridgeName,
-		contact,
+		contactUsername,
 	)
 
 	if err != nil {
@@ -263,7 +281,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 
 	if room.ID == nil {
 		slog.Debug("Creating contact room!")
-		roomId, err := createContactRoom(room, bridgeName, contact, deviceId)
+		roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()

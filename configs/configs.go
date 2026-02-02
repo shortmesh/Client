@@ -159,6 +159,7 @@ func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
 	if config.UsernameTemplate == "" {
 		return "", fmt.Errorf("username template not found for bridge type %s", bridgeName)
 	}
+	username = strings.ReplaceAll(username, "+", "")
 
 	// Replace {{.}} with the actual username
 	formattedUsername := strings.ReplaceAll(config.UsernameTemplate, "{{.}}", username)
