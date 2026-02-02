@@ -187,8 +187,3 @@ func ExtractBracketContent(input string) (string, error) {
 	content = strings.ReplaceAll(content, "+", "")
 	return content, nil
 }
-
-func ReverseAliasForEventSubscriber(username, bridgeName, homeserver string) string {
-	// @username:bridgeName:homeserver.com -> username_bridgeName
-	return fmt.Sprintf("@%s:%s:%s", username, bridgeName, homeserver)
-}

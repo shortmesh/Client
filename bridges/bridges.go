@@ -24,9 +24,118 @@ type Bridges struct {
 	Client       *mautrix.Client
 }
 
+func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, error) {
+	room := rooms.Rooms{
+		Client: client,
+		ID:     &roomId,
+	}
+	members, err := room.GetRoomMembers()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var bridgeBotContact id.UserID
+	for _, member := range members {
+		if member != client.UserID {
+			bridgeBotContact = member
+			break
+		}
+	}
+
+	slog.Debug("Found brige bot", "username", bridgeBotContact)
+
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, bridgeConf := range conf.Bridges {
+		userType, err := users.GetTypeUser(client, bridgeBotContact)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		if userType == users.BridgeBot {
+			roomId := id.RoomID(roomId)
+			return (&Bridges{
+				BridgeConfig: bridgeConf,
+				Client:       client,
+				RoomID:       &roomId,
+			}), nil
+		}
+	}
+
+	return nil, nil
+}
+
+func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, message string) (*Bridges, error) {
+	bridge, err := reverseForBridgeBot(client, roomdId)
+	slog.Debug("Processing incoming bot message", "name", bridge.BridgeConfig.Name)
+
+	// 123456789 (+123456789) - CONNECTED
+	cmd := bridge.BridgeConfig.Cmd["list-logins"]
+	regexPattern := strings.ReplaceAll(cmd, "%s", ".*")
+	matched, err := regexp.MatchString(regexPattern, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	if matched {
+		deviceId, err := configs.ExtractBracketContent(message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		err = (&devices.Devices{
+			Client:     client,
+			DeviceId:   deviceId,
+			BridgeName: bridge.BridgeConfig.Name,
+		}).Save()
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		slog.Debug("Saved new device", "name", deviceId)
+	}
+
+	// TODO: insert other possiblities
+
+	return bridge, nil
+
+}
+
 func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
+	userType, err := users.GetTypeUser(b.Client, evt.Sender)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if userType == users.BridgeBot {
+		_, err := processIncomingBotMessage(
+			b.Client,
+			evt.RoomID,
+			evt.Content.AsMessage().Body,
+		)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		return nil
+	}
+
 	bridge, err := b.LookupBridgeByRoomId(evt.RoomID.String())
-	slog.Debug("Lookup bridge", "roomdId", evt.RoomID.String())
 	if err != nil || bridge == nil {
 		if bridge == nil {
 			slog.Error(err.Error())
@@ -48,8 +157,6 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 		}
 	}
 
-	slog.Debug("Checking for bridge", "name", bridge.BridgeConfig.Name)
-
 	if evt.Sender != b.Client.UserID {
 		regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
 		matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
@@ -69,24 +176,6 @@ func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
 			slog.Debug("Saved new device", "name", deviceId)
 		}
 
-		// 123456789 (+123456789) - CONNECTED
-		regexPattern = strings.ReplaceAll(b.BridgeConfig.Cmd["list-logins"], "%s", ".*")
-		matched, err = regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-
-		if matched {
-			deviceId := strings.Fields(evt.Content.AsMessage().Body)[0]
-			(&devices.Devices{
-				Client:     b.Client,
-				DeviceId:   deviceId,
-				BridgeName: bridge.BridgeConfig.Name,
-			}).Save()
-			slog.Debug("Saved new device", "name", deviceId)
-		}
 	}
 	return nil
 }

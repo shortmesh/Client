@@ -19,42 +19,6 @@ type Rooms struct {
 	Members  map[string]string
 }
 
-// func (r *Rooms) IsBridgeInviteForContact(evt *event.Event) (bool, error) {
-// 	// TODO: check if the invite is from a bridge bot but not a bridge room
-// 	for _, bridge := range cfg.Bridges {
-// 		if bridge.BotName == evt.Sender.String() {
-// 			isBridge, err := r.IsBridgeMessage(evt)
-// 			if err != nil {
-// 				return false, err
-// 			}
-// 			return !isBridge, nil
-// 		}
-// 	}
-
-// 	return false, nil
-// }
-
-// func (r *Rooms) IsBridgeMessage(evt *event.Event) (bool, error) {
-// 	if evt.Type == event.EventMessage {
-// 		var UsersDB UsersDB = UsersDB{
-// 			username: r.Client.UserID.Localpart(),
-// 			filepath: "db/" + r.Client.UserID.Localpart() + ".db",
-// 		}
-
-// 		UsersDB.Init()
-// 		defer UsersDB.Close()
-
-// 		room, err := UsersDB.FetchRooms(evt.RoomID.String())
-
-// 		if err != nil {
-// 			return false, err
-// 		}
-
-// 		return room.isBridge, nil
-// 	}
-// 	return false, nil
-// }
-
 func (r *Rooms) GetRoomMembers() ([]id.UserID, error) {
 	members, err := r.Client.JoinedMembers(context.Background(), *r.ID)
 
@@ -253,6 +217,10 @@ func isContactRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
 			if err != nil {
 				return false, err
 			}
+			slog.Debug("User type", "type", userType, "member", member)
+			if userType == -1 {
+				continue
+			}
 			switch userType {
 			case users.User:
 				isUser = true
@@ -331,6 +299,7 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 
 		// TODO: get bridge name
 		if isContactRoom {
+			slog.Debug("Found contact room", "roomId", roomId)
 			room := Rooms{
 				Client: client,
 				ID:     &roomId,

@@ -76,7 +76,7 @@ func (d *DeviceDB) Save(deviceId, bridgeName string) error {
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO devices (device_id, bridge_name) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT OR REPLACE INTO devices (device_id, bridge_name, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
 		return err
