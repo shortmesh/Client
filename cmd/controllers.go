@@ -226,6 +226,7 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 		bridgeName,
 		contact,
 		deviceId,
+		false,
 	)
 
 	if err != nil {
