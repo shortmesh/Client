@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 
+	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -190,21 +191,7 @@ func (r *Rooms) Save(
 	return nil
 }
 
-func isContactRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
-	room := Rooms{
-		Client: client,
-		ID:     roomId,
-	}
-	members, err := room.GetRoomMembers()
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	slog.Debug("User details", "members_in_room", len(members))
-
+func isContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 	if len(members) == 4 {
 		// ? contact communication room?
 		// ? client, bridgeBot, device, some contact
@@ -240,20 +227,7 @@ func isContactRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
 	return false, nil
 }
 
-func isBridgeBotRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
-	room := Rooms{
-		Client: client,
-		ID:     roomId,
-	}
-	members, err := room.GetRoomMembers()
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	slog.Debug("User details", "members_in_room", len(members))
+func isBridgeBotRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 
 	if len(members) == 2 {
 		isUser := false
@@ -280,6 +254,64 @@ func isBridgeBotRoom(client *mautrix.Client, roomId *id.RoomID) (bool, error) {
 	return false, nil
 }
 
+func processIsContactRoom(client *mautrix.Client, roomId id.RoomID) error {
+	slog.Debug("Found contact room", "roomId", roomId)
+	room := Rooms{
+		Client: client,
+		ID:     &roomId,
+	}
+	members, err := room.GetRoomMembers()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	var bridgeName string
+	var contactName id.UserID
+	var deviceName id.UserID
+	for _, member := range members {
+		userType, err := users.GetTypeUser(client, member)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		switch userType {
+		case users.BridgeBot:
+			cfg, err := configs.GetConf()
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return err
+			}
+
+			for _, bridgeConf := range cfg.Bridges {
+				if bridgeConf.BotName == member.String() {
+					bridgeName = bridgeConf.Name
+					break
+				}
+			}
+		case users.Contact:
+			contactName = member
+		case users.Device:
+			deviceName = member
+		}
+	}
+
+	err = room.Save(bridgeName, contactName.String(), deviceName.String())
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	slog.Debug("Room parsed and saved", "BridgeName", bridgeName, "ContactName", contactName, "deviceName", deviceName)
+	return nil
+
+}
+
 func ParseRoomSubroutine(client *mautrix.Client) error {
 	ctx := context.Background()
 	rooms, err := client.JoinedRooms(ctx)
@@ -292,62 +324,43 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 	slog.Debug("User details", "num_rooms", len(rooms.JoinedRooms))
 
 	for _, roomId := range rooms.JoinedRooms {
-		isContactRoom, err := isContactRoom(client, &roomId)
+
+		room := Rooms{
+			Client: client,
+			ID:     &roomId,
+		}
+		members, err := room.GetRoomMembers()
+
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		slog.Debug("User details", "members_in_room", len(members))
+
+		isContactRoom, err := isContactRoom(client, members)
 		if err != nil {
 			return err
 		}
 
 		// TODO: get bridge name
 		if isContactRoom {
-			slog.Debug("Found contact room", "roomId", roomId)
-			room := Rooms{
-				Client: client,
-				ID:     &roomId,
-			}
-			members, err := room.GetRoomMembers()
-
+			err := processIsContactRoom(client, roomId)
 			if err != nil {
 				slog.Error(err.Error())
 				debug.PrintStack()
 				return err
 			}
-
-			var bridgeName id.UserID
-			var contactName id.UserID
-			var deviceName id.UserID
-			for _, member := range members {
-				userType, err := users.GetTypeUser(client, member)
-				if err != nil {
-					slog.Error(err.Error())
-					debug.PrintStack()
-					return err
-				}
-				switch userType {
-				case users.BridgeBot:
-					bridgeName = member
-				case users.Contact:
-					contactName = member
-				case users.Device:
-					deviceName = member
-				}
-			}
-
-			err = room.Save(bridgeName.String(), contactName.String(), deviceName.String())
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return err
-			}
-			slog.Debug("Room parsed and saved", "BridgeName", bridgeName, "ContactName", contactName, "deviceName", deviceName)
+			return nil
 		}
 
-		isBridgeBotRoom, err := isBridgeBotRoom(client, &roomId)
+		isBridgeBotRoom, err := isBridgeBotRoom(client, members)
 		if err != nil {
 			return err
 		}
 
 		if isBridgeBotRoom {
-			// TODO
+			slog.Debug("Found bridge bot", "roomId", roomId.String())
 		}
 	}
 

@@ -94,6 +94,26 @@ func isContact(
 
 	if err != nil {
 		if err == sql.ErrNoRows {
+			// !check if matches patterns
+			cfg, err := configs.GetConf()
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return false, err
+			}
+
+			for _, bridgeConf := range cfg.Bridges {
+				matched, err := cfg.CheckUserBridgeBotTemplate(bridgeConf.Name, contact)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return false, err
+				}
+
+				if matched {
+					return true, err
+				}
+			}
 			return false, nil
 		}
 		slog.Error(err.Error())

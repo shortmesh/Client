@@ -94,6 +94,22 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 			debug.PrintStack()
 			return nil, err
 		}
+
+		cfg, err := configs.GetConf()
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		deviceId, err = cfg.FormatUsername(bridge.BridgeConfig.Name, deviceId)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+
+		slog.Debug("Saving device", "bridgeName", bridge.BridgeConfig.Name)
+
 		err = (&devices.Devices{
 			Client:     client,
 			DeviceId:   deviceId,
