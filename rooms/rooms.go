@@ -364,13 +364,13 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return err
 		}
 		slog.Debug("User details", "members_in_room", len(members))
 
 		isContactRoom, err := isContactRoom(client, members)
 		if err != nil {
-			return err
+			slog.Error(err.Error())
+			debug.PrintStack()
 		}
 
 		if isContactRoom {
@@ -378,14 +378,13 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 			if err != nil {
 				slog.Error(err.Error())
 				debug.PrintStack()
-				return err
 			}
-			return nil
 		}
 
 		isBridgeBotRoom, err := isBridgeBotRoom(client, members)
 		if err != nil {
-			return err
+			slog.Error(err.Error())
+			debug.PrintStack()
 		}
 
 		if isBridgeBotRoom {
@@ -393,9 +392,7 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 			if err != nil {
 				slog.Error(err.Error())
 				debug.PrintStack()
-				return err
 			}
-			return nil
 		}
 	}
 

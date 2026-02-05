@@ -79,7 +79,10 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 
 	// 123456789 (+123456789) - CONNECTED
 	cmd := bridge.BridgeConfig.Cmd["list-logins"]
+	cmd = regexp.QuoteMeta(cmd)
+	slog.Debug("cmd", "list-logins", cmd)
 	regexPattern := strings.ReplaceAll(cmd, "%s", ".*")
+	slog.Debug("cmd-regex", "list-logins", regexPattern)
 	matched, err := regexp.MatchString(regexPattern, message)
 	if err != nil {
 		slog.Error(err.Error())
