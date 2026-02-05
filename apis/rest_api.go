@@ -2,14 +2,25 @@ package apis
 
 import "github.com/gin-gonic/gin"
 
-func APICreate(c *gin.Context) {
+func Login(c *gin.Context) {
 
 }
 
-func APILogin(c *gin.Context) {
+func AuthUrl(c *gin.Context) {
 
 }
 
-func APIAddDevice(c *gin.Context) {
+func Health(c *gin.Context) {
+
+}
+func GetPlatformDevices(c *gin.Context) {
+
+}
+func AddPlatformDevices(c *gin.Context) {
+}
+func SendPlatformMessage(c *gin.Context) {
+
+}
+func RemovePlatformDevices(c *gin.Context) {
 
 }

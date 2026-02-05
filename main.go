@@ -40,7 +40,7 @@ func RestAPIRoutines() {
 
 	// Add CORS middleware
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*") // use this for security
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
@@ -53,9 +53,13 @@ func RestAPIRoutines() {
 		c.Next()
 	})
 
-	router.POST("/", apis.APICreate)
-	router.POST("/login", apis.APILogin)
-	router.POST("/:platform/devices", apis.APIAddDevice)
+	router.POST("/login", apis.Login)
+	router.POST("/auth-url", apis.AuthUrl)
+	router.POST("/health", apis.Health)
+	router.GET("/:platform/devices", apis.GetPlatformDevices)
+	router.POST("/:platform/devices", apis.AddPlatformDevices)
+	router.DELETE("/:platform/devices", apis.RemovePlatformDevices)
+	router.POST("/:platform/message", apis.SendPlatformMessage)
 
 	cfg, err := configs.GetConf()
 	if err != nil {
