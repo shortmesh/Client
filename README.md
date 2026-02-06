@@ -11,6 +11,17 @@
     - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
     
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
+
+## Configuration and running
+### Configuration
+```bash
+cp conf.yaml.example conf.yaml
+```
+
+### Running (none production)
+```bash
+go run .
+```
  
 ## Schemas
 ```
