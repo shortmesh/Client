@@ -3,6 +3,7 @@ package clients
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/shortmesh/core/cmd"
@@ -44,25 +45,29 @@ func addBridges(client *mautrix.Client) {
 }
 
 // EXPLORATION:
-func authenticate(client *mautrix.Client) {
-	conf, err := configs.GetConf()
-	password := conf.User.Password
-
+func authenticate(client *mautrix.Client, password string, pickleKey []byte) {
 	if _, err := (&cmd.MatrixClient{
 		Client: client,
 	}).Login(password); err != nil {
 		log.Panic(err)
 	}
 
-	fmt.Printf("[+] DeviceID: %s\n", client.DeviceID)
-	fmt.Printf("[+] AccessToken: %s\n", client.AccessToken)
+	slog.Debug("authenticating",
+		"deviceId", client.DeviceID,
+		"accessToken", client.AccessToken,
+		"password", password,
+		"pickleKey", pickleKey,
+	)
 
-	cryptoHelper, err := cmd.SetupCryptoHelper(client)
+	cryptoHelper, err := cmd.SetupCryptoHelper(client, pickleKey)
 	if err != nil {
 		panic(err)
 	}
 
-	recoverykey := cmd.GenerateAndUploadClientKeys(cryptoHelper)
+	recoverykey, err := cmd.GenerateAndUploadClientKeys(cryptoHelper)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
 }
 
@@ -73,36 +78,34 @@ func TerminalRoutines() {
 		panic(err)
 	}
 
-	user := configs.UsersConfig{
-		Username:         conf.User.Username,
-		AccessToken:      conf.User.AccessToken,
-		RecoveryKey:      conf.User.RecoveryKey,
-		HomeServer:       conf.HomeServer,
-		HomeServerDomain: conf.HomeServerDomain,
-	}
-
+	username := os.Args[3]
 	client, err := mautrix.NewClient(
-		user.HomeServer,
-		id.NewUserID(user.Username, user.HomeServerDomain),
-		user.AccessToken,
+		conf.HomeServer,
+		id.NewUserID(username, conf.HomeServerDomain),
+		"",
 	)
 
 	switch os.Args[2] {
 	case "--authenticate":
 		fmt.Println("[+] Login commencing...")
-		authenticate(client)
+		password := os.Args[4]
+		pickleKey := os.Args[5] //TODO: b64 should be decoded
+		authenticate(client, password, []byte(pickleKey))
 	case "--add-device":
 		fmt.Println("[+] Adding device commencing...")
 		bridgeName := os.Args[3]
+		client.AccessToken = os.Args[4]
 		addDevice(client, bridgeName)
 	case "--add-bridge":
 		fmt.Println("[+] Adding bridges commencing...")
+		client.AccessToken = os.Args[4]
 		addBridges(client)
 	case "--send-message":
-		deviceId := os.Args[3]
-		bridgeName := os.Args[4]
-		contact := os.Args[5]
-		message := os.Args[6]
+		client.AccessToken = os.Args[4]
+		deviceId := os.Args[5]
+		bridgeName := os.Args[6]
+		contact := os.Args[7]
+		message := os.Args[8]
 		fmt.Printf("[+] Sending message: From %s -> %s for %s, %s\n", deviceId, contact, bridgeName, message)
 		sendMessage(client, deviceId, bridgeName, contact, message)
 	}

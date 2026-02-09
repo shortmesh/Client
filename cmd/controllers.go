@@ -33,45 +33,39 @@ func SyncUsers() error {
 	}
 
 	// ? Read all users from the database
-	user := configs.UsersConfig{
-		Username:         conf.User.Username,
-		AccessToken:      conf.User.AccessToken,
-		RecoveryKey:      conf.User.RecoveryKey,
-		HomeServer:       conf.HomeServer,
-		HomeServerDomain: conf.HomeServerDomain,
+	userId := ""
+	accessToken := ""
+	deviceId := ""
+	client, err := mautrix.NewClient(
+		conf.HomeServer,
+		id.UserID(userId),
+		accessToken,
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
-
-	syncUser(user)
+	user := users.Users{
+		Client:      client,
+		RecoveryKey: "",
+		PickleKey:   "",
+		DeviceId:    id.DeviceID(deviceId),
+	}
+	syncUser(client, user)
 	return nil
 }
 
-func syncUser(user configs.UsersConfig) error {
-	conf, err := configs.GetConf()
-
+func syncUser(client *mautrix.Client, user users.Users) error {
+	err := rooms.ParseRoomSubroutine(client)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	client, err := mautrix.NewClient(
-		user.HomeServer,
-		id.NewUserID(user.Username, user.HomeServerDomain),
-		user.AccessToken,
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	err = rooms.ParseRoomSubroutine(client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	client.DeviceID = id.DeviceID(conf.User.DeviceId)
-	cryptoHelper, err := SetupCryptoHelper(client)
+	client.DeviceID = id.DeviceID(user.DeviceId)
+	cryptoHelper, err := SetupCryptoHelper(client, []byte(user.PickleKey))
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

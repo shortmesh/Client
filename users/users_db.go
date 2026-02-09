@@ -8,7 +8,6 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/shortmesh/core/configs"
 )
 
 type UsersDB struct {
@@ -43,23 +42,23 @@ func (u *UsersDB) CreateUser(username string, accessToken string) error {
 	return nil
 }
 
-func (u *UsersDB) FetchUser(username string) (*configs.UsersConfig, error) {
+func (u *UsersDB) FetchUser(username string) (string, string, error) {
 	stmt, err := u.connection.Prepare("select id, username, accessToken from users where username = ?")
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 
 	defer stmt.Close()
 
 	var id int
 	var _username string
-	var _accessToken string
-	err = stmt.QueryRow(username).Scan(&id, &_username, &_accessToken)
+	var accessToken string
+	err = stmt.QueryRow(username).Scan(&id, &_username, &accessToken)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 
-	return &configs.UsersConfig{Username: _username, AccessToken: _accessToken}, nil
+	return _username, accessToken, nil
 }
 
 // func (ks *Keystore) FetchAllUsers() ([]Users, error) {
@@ -107,9 +106,11 @@ func (UsersDB *UsersDB) Init() error {
 	CREATE TABLE IF NOT EXISTS user ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	username TEXT NOT NULL UNIQUE, 
-	password TEXT NOT NULL,
 	access_token TEXT NOT NULL, 
+	recovery_key TEXT NOT NULL, 
+	pickle_key BLOB NOT NULL, 
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	UNIQUE(username)
 	);
 	`)
 
@@ -159,14 +160,14 @@ func (UsersDB *UsersDB) Authenticate(username string, password string) (bool, er
 	return true, nil
 }
 
-func (UsersDB *UsersDB) Store(accessToken string, password string) error {
+func (UsersDB *UsersDB) Store(accessToken, recoveryKey, pickleKey string) error {
 	tx, err := UsersDB.connection.Begin()
 	if err != nil {
 		return err
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO clients (username, accessToken, password, timestamp) 
+		INSERT OR REPLACE INTO clients (username, accessToken, recovery_key, pickle_key, timestamp) 
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
@@ -175,7 +176,7 @@ func (UsersDB *UsersDB) Store(accessToken string, password string) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(UsersDB.Username, accessToken, password)
+	_, err = stmt.Exec(UsersDB.Username, accessToken, recoveryKey, pickleKey)
 	if err != nil {
 		return err
 	}

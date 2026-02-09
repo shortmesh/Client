@@ -21,8 +21,10 @@ const (
 )
 
 type Users struct {
-	Client *mautrix.Client
-	UserID *id.UserID
+	Client      *mautrix.Client
+	RecoveryKey string
+	PickleKey   string
+	DeviceId    id.DeviceID
 }
 
 func GetUserDB(client *mautrix.Client) (*UsersDB, error) {
@@ -94,7 +96,6 @@ func isContact(
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// !check if matches patterns
 			cfg, err := configs.GetConf()
 			if err != nil {
 				slog.Error(err.Error())
@@ -126,6 +127,21 @@ func isContact(
 	}
 
 	return true, nil
+}
+
+func (u *Users) Save() error {
+	usersDb, err := GetUserDB(u.Client)
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+
+	err = usersDb.Store(u.Client.AccessToken, u.RecoveryKey, u.PickleKey)
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+	return nil
 }
 
 func FetchMessageContact(

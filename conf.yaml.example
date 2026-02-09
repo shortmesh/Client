@@ -1,14 +1,6 @@
 homeserver: "https://relaysms.me"
 homeserver_domain: "relaysms.me"
 keystore_filepath: "db/users.db"
-pickle_key: ""
-user:
-  username: ""
-  password: ""
-  # manually fill all this if you don't have them - login
-  access_token: ""
-  recovery_key: ""
-  device_id: ""
 server:
   port: 8080
   host: "0.0.0.0"

@@ -31,24 +31,12 @@ type BridgeConfig struct {
 	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
 }
 
-type UsersConfig struct {
-	Username         string `yaml:"username"`
-	Password         string `yaml:"password"`
-	AccessToken      string `yaml:"access_token"`
-	RecoveryKey      string `yaml:"recovery_key"`
-	DeviceId         string `yaml:"device_id"`
-	HomeServer       string `yaml:"homeserver"`
-	HomeServerDomain string `yaml:"homeserver_domain"`
-}
-
 type Conf struct {
 	Server           Server         `yaml:"server"`
 	KeystoreFilepath string         `yaml:"keystore_filepath"`
 	HomeServer       string         `yaml:"homeserver"`
 	HomeServerDomain string         `yaml:"homeserver_domain"`
 	Bridges          []BridgeConfig `yaml:"bridges"`
-	User             UsersConfig    `yaml:"user"`
-	PickleKey        string         `yaml:"pickle_key"`
 }
 
 func GetConf() (*Conf, error) {
@@ -187,4 +175,18 @@ func ExtractBracketContent(input string) (string, error) {
 	// Remove the "+" character from the content
 	content = strings.ReplaceAll(content, "+", "")
 	return content, nil
+}
+
+// Input validation functions
+func SanitizeUsername(username string) (string, error) {
+	// Remove any whitespace
+	username = strings.TrimSpace(username)
+
+	// Username should be 3-32 characters and contain only letters, numbers, and underscores
+	validUsername := regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
+	if !validUsername.MatchString(username) {
+		return "", fmt.Errorf("username must be 3-32 characters and contain only letters, numbers, and underscores")
+	}
+
+	return username, nil
 }

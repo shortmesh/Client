@@ -1,10 +1,8 @@
 package apis
 
-import "github.com/gin-gonic/gin"
-
-func Login(c *gin.Context) {
-
-}
+import (
+	"github.com/gin-gonic/gin"
+)
 
 func AuthUrl(c *gin.Context) {
 

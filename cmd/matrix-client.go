@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/rooms"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto"
@@ -81,25 +80,22 @@ func (m *MatrixClient) Create(username string, password string) (string, error) 
 	return resp.AccessToken, nil
 }
 
-func SetupCryptoHelper(cli *mautrix.Client) (*cryptohelper.CryptoHelper, error) {
-	// remember to use a secure key for the pickle key in production
-	conf, err := configs.GetConf()
-	if err != nil {
-		panic(err)
-	}
-	pickleKeyString := conf.PickleKey
-	pickleKey := []byte(pickleKeyString)
-
+func SetupCryptoHelper(cli *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
+	// TODO: change this to users path
 	dbPath := "db/crypto.db" // this path needs to change for each user
 
 	helper, err := cryptohelper.NewCryptoHelper(cli, pickleKey, dbPath)
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return nil, err
 	}
 
 	// initialize the database and other stuff
 	err = helper.Init(context.Background())
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return nil, err
 	}
 
@@ -114,7 +110,8 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	syncer.OnEventType(event.EventEncrypted, func(ctx context.Context, evt *event.Event) {
 		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
 		if err != nil {
-			log.Println(err)
+			slog.Error(err.Error())
+			debug.PrintStack()
 		}
 		ch <- evt
 	})
@@ -122,25 +119,13 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
 		if evt.Type.Class == event.ToDeviceEventType {
 			machine.HandleToDeviceEvent(ctx, evt)
-			log.Printf("Handled to device...")
 		} else {
 			(&rooms.Rooms{
 				Client: m.Client,
 				ID:     &evt.RoomID,
 			}).GetInvites(evt)
 		}
-		// log.Printf("%s\n", evt.Type)
 	})
-
-	// readyChan := make(chan bool)
-	// var once sync.Once
-	// syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
-	// 	once.Do(func() {
-	// 		close(readyChan)
-	// 	})
-
-	// 	return true
-	// })
 
 	go func() {
 		if err := m.Client.Sync(); err != nil {
@@ -148,26 +133,27 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		}
 	}()
 
-	// log.Println("Waiting for sync to receive first event from the encrypted room...")
-	// <-readyChan
-	// log.Println("Sync received")
-
 	return nil
 }
 
-func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string {
+func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
 	ctx := context.Background()
 	machine := cryptoHelper.Machine()
 
+	// !user should send a passphrase
 	passphrase := "f.society"
 	err := machine.ShareKeys(ctx, 1)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 
 	key, err := machine.SSSS.GenerateAndUploadKey(ctx, passphrase)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 
 	// conf, err := cfg.getConf()
@@ -186,26 +172,34 @@ func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) string
 	if err != nil {
 		// If it still fails, the account data on the server is likely corrupted.
 		// You may need to manually reset the account's cross-signing via a client like Element.
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 	log.Println("[+] Recovery key: ", recoveryKey)
 
 	err = machine.SSSS.SetDefaultKeyID(ctx, key.ID)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 
 	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 
 	err = machine.SignOwnMasterKey(ctx)
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
 
-	return key.RecoveryKey()
+	return key.RecoveryKey(), nil
 }
 
 func verifyRecoveryKey(
