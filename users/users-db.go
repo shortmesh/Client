@@ -55,7 +55,7 @@ func (UserDB *UserDB) Init() error {
 	access_token TEXT NOT NULL, 
 	recovery_key TEXT NOT NULL, 
 	pickle_key BLOB NOT NULL, 
-	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(username)
 	);
 	`)
@@ -78,7 +78,7 @@ func (c *ClientDB) Init() error {
 	CREATE TABLE IF NOT EXISTS client ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	username TEXT NOT NULL UNIQUE, 
-	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(username)
 	);
 	`)

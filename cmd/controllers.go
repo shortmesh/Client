@@ -31,6 +31,8 @@ func SyncUsers() error {
 		return err
 	}
 
+	slog.Debug("Syncing details", "#users", len(users))
+
 	for _, user := range users {
 		go func() {
 			err = Sync(user)

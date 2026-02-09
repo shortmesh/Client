@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"log"
+	"log/slog"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -83,6 +84,6 @@ func RabbitMQReceiver() {
 		}
 	}()
 
-	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+	slog.Debug("RabbitMQ waiting for messages")
 	<-forever
 }
