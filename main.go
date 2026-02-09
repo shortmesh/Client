@@ -48,6 +48,7 @@ func RestAPIRoutines() {
 	})
 
 	router.POST("/login", apis.Login)
+	router.POST("/store", apis.Store) // TODO
 	router.POST("/auth-url", apis.AuthUrl)
 	router.POST("/health", apis.Health)
 	router.GET("/:platform/devices", apis.GetPlatformDevices)
