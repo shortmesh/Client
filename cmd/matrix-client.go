@@ -31,6 +31,7 @@ func (m *MatrixClient) Login(password string) error {
 		Identifier:       identifier,
 		Password:         password,
 		StoreCredentials: true,
+		DeviceID:         m.Client.DeviceID,
 	})
 	if err != nil {
 		slog.Error(err.Error())
@@ -54,32 +55,6 @@ func Logout(client *mautrix.Client) error {
 
 	fmt.Println("Logout successful.")
 	return err
-}
-
-func (m *MatrixClient) Create(username string, password string) (string, error) {
-	fmt.Printf("[+] Creating user: %s\n", username)
-
-	_, err := m.Client.RegisterAvailable(context.Background(), username)
-	if err != nil {
-		return "", err
-	}
-	// if !available.Available {
-	// 	log.Fatalf("Username '%s' is already taken", username)
-	// }
-
-	resp, _, err := m.Client.Register(context.Background(), &mautrix.ReqRegister{
-		Username: username,
-		Password: password,
-		Auth: map[string]interface{}{
-			"type": "m.login.dummy",
-		},
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	return resp.AccessToken, nil
 }
 
 func setupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
@@ -167,7 +142,7 @@ func generateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (strin
 			"token":   machine.Client.AccessToken,
 		}
 	}
-	recoveryKey, _, err := machine.GenerateAndUploadCrossSigningKeys(ctx, uiaCallback, passphrase)
+	_, _, err = machine.GenerateAndUploadCrossSigningKeys(ctx, uiaCallback, passphrase)
 	if err != nil {
 		// If it still fails, the account data on the server is likely corrupted.
 		// You may need to manually reset the account's cross-signing via a client like Element.
@@ -175,7 +150,6 @@ func generateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (strin
 		debug.PrintStack()
 		return "", err
 	}
-	log.Println("[+] Recovery key: ", recoveryKey)
 
 	err = machine.SSSS.SetDefaultKeyID(ctx, key.ID)
 	if err != nil {

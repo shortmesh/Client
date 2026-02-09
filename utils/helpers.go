@@ -3,7 +3,11 @@ package utils
 import (
 	"crypto/rand"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 )
 
@@ -43,4 +47,30 @@ func SanitizeUsername(username string) (string, error) {
 	}
 
 	return username, nil
+}
+
+func DeleteFilesWithPattern(dirPath, pattern string) error {
+	// Construct the full pattern for filepath.Glob
+	fullPattern := filepath.Join(dirPath, pattern)
+
+	// Use filepath.Glob to find matching files
+	files, err := filepath.Glob(fullPattern)
+	if err != nil {
+		return fmt.Errorf("error finding files with pattern %s: %w", fullPattern, err)
+	}
+
+	// Loop through the found files and remove each one
+	for _, file := range files {
+		err := os.Remove(file)
+		if err != nil {
+			// Log the error but continue with the next file
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		} else {
+			slog.Debug("Successfully deleted file", "filename", file)
+		}
+	}
+
+	return nil
 }

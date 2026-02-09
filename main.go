@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/apis"
-	"github.com/shortmesh/core/clients"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/rabbitmq"
@@ -22,11 +21,6 @@ func main() {
 		Level: &programLevel, // Use the LevelVar
 	})
 	slog.SetDefault(slog.New(handler))
-
-	if len(os.Args) > 2 {
-		clients.TerminalRoutines()
-		return
-	}
 
 	go cmd.SyncUsers()
 	go RestAPIRoutines()

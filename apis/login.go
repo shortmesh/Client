@@ -34,6 +34,7 @@ func validatePassword(password string) (string, error) {
 }
 
 // ApiLogin godoc
+// @Summary DO NOT USE THIS METHOD, FOR DEVELOPMENT ONLY
 // @Summary Logs a user into the Matrix server
 // @Description Authenticates a user and returns an access token
 // @Accept  json
@@ -87,7 +88,9 @@ func Login(c *gin.Context) {
 	}
 
 	controller := &cmd.Controller{Client: client}
+
 	recoveryKey, err := controller.Login(password)
+
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

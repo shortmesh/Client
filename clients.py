@@ -9,7 +9,7 @@ def login(username, password):
     url = "http://localhost:8080/login"
     payload = {
         "username" : username,
-        "password" : password
+        "password" : password,
     }
     response = requests.post(url, json=payload)
 

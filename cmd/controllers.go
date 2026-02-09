@@ -5,6 +5,7 @@ import (
 	// 	"fmt"
 
 	"encoding/json"
+	"fmt"
 	"log"
 	"log/slog"
 	"runtime/debug"
@@ -24,6 +25,7 @@ type Controller struct {
 	Client *mautrix.Client
 }
 
+// !This should be used if account reset is on the table
 func (c *Controller) Login(password string) (string, error) {
 	mc := &MatrixClient{Client: c.Client}
 	err := mc.Login(password)
@@ -31,7 +33,6 @@ func (c *Controller) Login(password string) (string, error) {
 		slog.Error(err.Error())
 		return "", err
 	}
-
 	pickleKey, err := utils.GenerateRandomBytes(32)
 	slog.Debug("authenticating",
 		"deviceId", c.Client.DeviceID,
@@ -39,6 +40,13 @@ func (c *Controller) Login(password string) (string, error) {
 		"password", password,
 		"pickleKey", pickleKey,
 	)
+
+	err = utils.DeleteFilesWithPattern("./db", fmt.Sprintf("%s-crypto.*", c.Client.UserID.Localpart()))
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
 
 	cryptoHelper, err := setupCryptoHelper(c.Client, pickleKey)
 	if err != nil {
@@ -64,7 +72,6 @@ func (c *Controller) Login(password string) (string, error) {
 		return "", err
 	}
 	slog.Debug("Saved user", "username", c.Client.UserID)
-
 	return recoveryKey, nil
 }
 
@@ -116,9 +123,6 @@ func Sync(user users.Users) error {
 	}
 
 	mc.Client.Crypto = cryptoHelper
-
-	var wg sync.WaitGroup
-	wg.Add(1)
 
 	ch := make(chan *event.Event)
 
