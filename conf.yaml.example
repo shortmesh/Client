@@ -1,6 +1,5 @@
-homeserver: "https://relaysms.me"
-homeserver_domain: "relaysms.me"
-keystore_filepath: "db/users.db"
+homeserver: ""
+homeserver_domain: ""
 server:
   port: 8080
   host: "0.0.0.0"
