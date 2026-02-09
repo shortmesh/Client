@@ -2,7 +2,6 @@ package rooms
 
 import (
 	"database/sql"
-	"log"
 )
 
 type RoomsDB struct {
@@ -39,7 +38,6 @@ func (r *RoomsDB) Init() error {
 }
 
 func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
-	log.Println("Fetching bridge rooms for", roomId)
 	stmt, err := r.connection.Prepare(
 		"select bridge_name from rooms where room_id = ?",
 	)
@@ -73,7 +71,6 @@ func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
 }
 
 func (r *RoomsDB) FetchRoomByName(name string) (*[]string, error) {
-	log.Println("Fetching bridge rooms for", name)
 	stmt, err := r.connection.Prepare(
 		"select room_id from rooms where bridge_name = ? AND is_bridge_bot = ?",
 	)
