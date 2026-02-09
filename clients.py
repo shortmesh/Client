@@ -6,7 +6,7 @@ import requests
 import json
 
 def login(username, password):
-    url = "localhost:8080/login"
+    url = "http://localhost:8080/login"
     payload = {
         "username" : username,
         "password" : password

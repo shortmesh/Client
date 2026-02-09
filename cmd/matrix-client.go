@@ -20,7 +20,7 @@ type MatrixClient struct {
 	CryptoHelper *cryptohelper.CryptoHelper
 }
 
-func (m *MatrixClient) Login(password string) (string, error) {
+func (m *MatrixClient) Login(password string) error {
 	identifier := mautrix.UserIdentifier{
 		Type: mautrix.IdentifierTypeUser,
 		User: m.Client.UserID.String(),
@@ -33,12 +33,14 @@ func (m *MatrixClient) Login(password string) (string, error) {
 		StoreCredentials: true,
 	})
 	if err != nil {
-		return "", err
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
 	m.Client.AccessToken = resp.AccessToken
 	m.Client.DeviceID = resp.DeviceID
 
-	return resp.AccessToken, nil
+	return nil
 }
 
 func Logout(client *mautrix.Client) error {
@@ -80,11 +82,10 @@ func (m *MatrixClient) Create(username string, password string) (string, error) 
 	return resp.AccessToken, nil
 }
 
-func SetupCryptoHelper(cli *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
-	// TODO: change this to users path
-	dbPath := "db/crypto.db" // this path needs to change for each user
+func setupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
+	dbPath := fmt.Sprintf("db/%s-crypto.db", client.UserID.Localpart()) // this path needs to change for each user
 
-	helper, err := cryptohelper.NewCryptoHelper(cli, pickleKey, dbPath)
+	helper, err := cryptohelper.NewCryptoHelper(client, pickleKey, dbPath)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -127,16 +128,14 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		}
 	})
 
-	go func() {
-		if err := m.Client.Sync(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	if err := m.Client.Sync(); err != nil {
+		log.Fatal(err)
+	}
 
 	return nil
 }
 
-func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
+func generateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
 	ctx := context.Background()
 	machine := cryptoHelper.Machine()
 

@@ -20,25 +20,6 @@ type UserDB struct {
 	Filepath   string
 }
 
-func (u *UserDB) FetchUser(username string) (string, string, error) {
-	stmt, err := u.connection.Prepare("select id, username, accessToken from users where username = ?")
-	if err != nil {
-		return "", "", err
-	}
-
-	defer stmt.Close()
-
-	var id int
-	var _username string
-	var accessToken string
-	err = stmt.QueryRow(username).Scan(&id, &_username, &accessToken)
-	if err != nil {
-		return "", "", err
-	}
-
-	return _username, accessToken, nil
-}
-
 // https://github.com/mattn/go-sqlite3/blob/v1.14.28/_example/simple/simple.go
 func (UserDB *UserDB) Init() error {
 	db, err := sql.Open("sqlite3", UserDB.Filepath)
@@ -53,6 +34,7 @@ func (UserDB *UserDB) Init() error {
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	username TEXT NOT NULL UNIQUE, 
 	access_token TEXT NOT NULL, 
+	device_id TEXT NOT NULL, 
 	recovery_key TEXT NOT NULL, 
 	pickle_key BLOB NOT NULL, 
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -75,7 +57,7 @@ func (c *ClientDB) Init() error {
 	c.connection = db
 
 	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS client ( 
+	CREATE TABLE IF NOT EXISTS clients ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	username TEXT NOT NULL UNIQUE, 
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,8 +71,29 @@ func (c *ClientDB) Init() error {
 	return err
 }
 
+func (u *UserDB) FetchUser(username string) (string, string, string, []byte, error) {
+	stmt, err := u.connection.Prepare("select id, username, access_token, device_id, pickle_key from user where username = ?")
+	if err != nil {
+		return "", "", "", nil, err
+	}
+
+	defer stmt.Close()
+
+	var id int
+	var _username string
+	var accessToken string
+	var deviceId string
+	var pickleKey []byte
+	err = stmt.QueryRow(username).Scan(&id, &_username, &accessToken, &deviceId, &pickleKey)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+
+	return _username, accessToken, deviceId, pickleKey, nil
+}
+
 func (UserDB *UserDB) AuthenticateAccessToken(username string, accessToken string) (bool, error) {
-	query := `SELECT COUNT(*) FROM user WHERE username = ? AND accessToken = ?`
+	query := `SELECT COUNT(*) FROM user WHERE username = ? AND access_token = ?`
 
 	var count int
 	err := UserDB.connection.QueryRow(query, username, accessToken).Scan(&count)
@@ -129,6 +132,41 @@ func (UserDB *UserDB) Authenticate(username string, password string) (bool, erro
 	return true, nil
 }
 
+func (UserDB *UserDB) Store(
+	username,
+	accessToken,
+	deviceId,
+	recoveryKey string,
+	pickleKey []byte,
+) error {
+	tx, err := UserDB.connection.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO user (username, access_token, recovery_key, device_id, pickle_key, timestamp) 
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`)
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(username, accessToken, recoveryKey, deviceId, pickleKey)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *ClientDB) Store(username string) error {
 	tx, err := c.connection.Begin()
 	if err != nil {
@@ -157,41 +195,8 @@ func (c *ClientDB) Store(username string) error {
 	return nil
 }
 
-func (UserDB *UserDB) Store(
-	accessToken,
-	recoveryKey,
-	pickleKey string,
-) error {
-	tx, err := UserDB.connection.Begin()
-	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO user (username, accessToken, recovery_key, pickle_key, timestamp) 
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-	`)
-	if err != nil {
-		return err
-	}
-
-	defer stmt.Close()
-
-	_, err = stmt.Exec(UserDB.Username, accessToken, recoveryKey, pickleKey)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (c *ClientDB) FetchUsers() ([]string, error) {
-	stmt, err := c.connection.Prepare("select username from client")
+	stmt, err := c.connection.Prepare("select username from clients")
 	if err != nil {
 		return nil, err
 	}

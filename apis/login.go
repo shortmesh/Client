@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/users"
+	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
@@ -62,7 +62,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	username, err := configs.SanitizeUsername(clientJsonRequest.Username)
+	username, err := utils.SanitizeUsername(clientJsonRequest.Username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -82,33 +82,24 @@ func Login(c *gin.Context) {
 
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	accessToken, err := (&cmd.MatrixClient{Client: client}).Login(password)
+	controller := &cmd.Controller{Client: client}
+	recoveryKey, err := controller.Login(password)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not your fault"})
 		return
 	}
-
-	client.AccessToken = accessToken
-	// TODO: generate and store recovery key during login
-	err = (&users.Users{Client: client, RecoveryKey: "", PickleKey: ""}).Save()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
-		return
-	}
-	slog.Debug("Saved user", "username", client.UserID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"username":     client.UserID.String(),
-		"access_token": accessToken,
+		"access_token": controller.Client.AccessToken,
+		"device_id":    controller.Client.DeviceID.String(),
+		"recovery_key": recoveryKey,
 		"status":       "logged in",
 	})
 

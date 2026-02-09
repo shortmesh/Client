@@ -23,8 +23,7 @@ const (
 type Users struct {
 	Client      *mautrix.Client
 	RecoveryKey string
-	PickleKey   string
-	DeviceId    id.DeviceID
+	PickleKey   []byte
 }
 
 func GetClientDB() (*ClientDB, error) {
@@ -40,7 +39,7 @@ func GetClientDB() (*ClientDB, error) {
 	return &clientDb, err
 }
 
-func GetUserDB(client mautrix.Client) (*UserDB, error) {
+func GetUserDB(client *mautrix.Client) (*UserDB, error) {
 	usersDb := UserDB{
 		Username: client.UserID.Localpart(),
 		Filepath: "db/" + client.UserID.Localpart() + ".db",
@@ -98,7 +97,7 @@ func isContact(
 	client *mautrix.Client,
 	contact string,
 ) (bool, error) {
-	usersDb, err := GetUserDB(*client)
+	usersDb, err := GetUserDB(client)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -143,13 +142,19 @@ func isContact(
 }
 
 func (u *Users) Save() error {
-	usersDb, err := GetUserDB(*u.Client)
+	usersDb, err := GetUserDB(u.Client)
 	if err != nil {
 		debug.PrintStack()
 		return err
 	}
 
-	err = usersDb.Store(u.Client.AccessToken, u.RecoveryKey, u.PickleKey)
+	err = usersDb.Store(
+		u.Client.UserID.String(),
+		u.Client.AccessToken,
+		u.Client.DeviceID.String(),
+		u.RecoveryKey,
+		u.PickleKey,
+	)
 	if err != nil {
 		debug.PrintStack()
 		return err
@@ -175,7 +180,7 @@ func FetchMessageContact(
 	bridgeName,
 	contact string,
 ) (*string, error) {
-	usersDb, err := GetUserDB(*client)
+	usersDb, err := GetUserDB(client)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -214,17 +219,25 @@ func FetchAllUsers() ([]Users, error) {
 	}
 
 	var users []Users
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
 	for _, username := range fetchedUsers {
-		client := mautrix.Client{
-			UserID: id.UserID(username),
-		}
+		client, err := mautrix.NewClient(
+			conf.HomeServer,
+			id.UserID(username),
+			"",
+		)
 		userDb, err := GetUserDB(client)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
 			return nil, err
 		}
-		_, accessToken, err := userDb.FetchUser(username)
+		_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(username)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -232,9 +245,11 @@ func FetchAllUsers() ([]Users, error) {
 		}
 
 		client.AccessToken = accessToken
+		client.DeviceID = id.DeviceID(deviceId)
 
 		user := Users{
-			Client: &client,
+			Client:    client,
+			PickleKey: pickleKey,
 		}
 		users = append(users, user)
 	}

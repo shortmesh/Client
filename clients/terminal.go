@@ -46,29 +46,20 @@ func addBridges(client *mautrix.Client) {
 
 // EXPLORATION:
 func authenticate(client *mautrix.Client, password string, pickleKey []byte) {
-	if _, err := (&cmd.MatrixClient{
+	if recoveryKey, err := (&cmd.Controller{
 		Client: client,
 	}).Login(password); err != nil {
 		log.Panic(err)
+	} else {
+		slog.Debug("authenticating",
+			"deviceId", client.DeviceID,
+			"accessToken", client.AccessToken,
+			"password", password,
+			"pickleKey", pickleKey,
+		)
+		fmt.Printf("[+] RecoveryKey: %s\n", recoveryKey)
 	}
 
-	slog.Debug("authenticating",
-		"deviceId", client.DeviceID,
-		"accessToken", client.AccessToken,
-		"password", password,
-		"pickleKey", pickleKey,
-	)
-
-	cryptoHelper, err := cmd.SetupCryptoHelper(client, pickleKey)
-	if err != nil {
-		panic(err)
-	}
-
-	recoverykey, err := cmd.GenerateAndUploadClientKeys(cryptoHelper)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("[+] RecoveryKey: %s\n", recoverykey)
 }
 
 func TerminalRoutines() {

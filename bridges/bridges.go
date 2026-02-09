@@ -13,6 +13,7 @@ import (
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
+	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -91,7 +92,7 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 	}
 
 	if matched {
-		deviceId, err := configs.ExtractBracketContent(message)
+		deviceId, err := utils.ExtractBracketContent(message)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()

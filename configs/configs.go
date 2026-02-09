@@ -163,30 +163,3 @@ func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
 
 	return formattedUsername, nil
 }
-
-// ExtractBracketContent extracts the content inside the first pair of parentheses in the input string.
-func ExtractBracketContent(input string) (string, error) {
-	start := strings.Index(input, "(")
-	end := strings.Index(input, ")")
-	if start == -1 || end == -1 || end <= start+1 {
-		return "", fmt.Errorf("no content found in brackets")
-	}
-	content := input[start+1 : end]
-	// Remove the "+" character from the content
-	content = strings.ReplaceAll(content, "+", "")
-	return content, nil
-}
-
-// Input validation functions
-func SanitizeUsername(username string) (string, error) {
-	// Remove any whitespace
-	username = strings.TrimSpace(username)
-
-	// Username should be 3-32 characters and contain only letters, numbers, and underscores
-	validUsername := regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
-	if !validUsername.MatchString(username) {
-		return "", fmt.Errorf("username must be 3-32 characters and contain only letters, numbers, and underscores")
-	}
-
-	return username, nil
-}

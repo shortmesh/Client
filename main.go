@@ -74,8 +74,18 @@ func RestAPIRoutines() {
 	tlsKey := cfg.Server.Tls.Key
 
 	if tlsCert != "" && tlsKey != "" {
-		router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey)
+		err := router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return
+		}
 	} else {
-		router.Run(fmt.Sprintf("%s:%s", host, port))
+		err := router.Run(fmt.Sprintf("%s:%s", host, port))
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return
+		}
 	}
 }

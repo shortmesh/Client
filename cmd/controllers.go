@@ -14,6 +14,7 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
+	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -21,6 +22,50 @@ import (
 
 type Controller struct {
 	Client *mautrix.Client
+}
+
+func (c *Controller) Login(password string) (string, error) {
+	mc := &MatrixClient{Client: c.Client}
+	err := mc.Login(password)
+	if err != nil {
+		slog.Error(err.Error())
+		return "", err
+	}
+
+	pickleKey, err := utils.GenerateRandomBytes(32)
+	slog.Debug("authenticating",
+		"deviceId", c.Client.DeviceID,
+		"accessToken", c.Client.AccessToken,
+		"password", password,
+		"pickleKey", pickleKey,
+	)
+
+	cryptoHelper, err := setupCryptoHelper(c.Client, pickleKey)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	recoveryKey, err := generateAndUploadClientKeys(cryptoHelper)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	err = (&users.Users{
+		Client:      c.Client,
+		RecoveryKey: recoveryKey,
+		PickleKey:   pickleKey,
+	}).Save()
+	if err != nil {
+		slog.Error(err.Error())
+		return "", err
+	}
+	slog.Debug("Saved user", "username", c.Client.UserID)
+
+	return recoveryKey, nil
 }
 
 func SyncUsers() error {
@@ -32,9 +77,12 @@ func SyncUsers() error {
 	}
 
 	slog.Debug("Syncing details", "#users", len(users))
+	var wg sync.WaitGroup
 
 	for _, user := range users {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			err = Sync(user)
 			if err != nil {
 				slog.Error(err.Error())
@@ -42,21 +90,21 @@ func SyncUsers() error {
 			}
 		}()
 	}
+	wg.Wait()
+	slog.Debug("Syncing details", "status", "completed and exiting")
 
 	return nil
 }
 
 func Sync(user users.Users) error {
-	slog.Debug("Syncing user", "UserID", user.Client.UserID.String())
+	slog.Debug("Syncing user", "UserID", user.Client.UserID.String(), "DeviceID", user.Client.DeviceID)
 	err := rooms.ParseRoomSubroutine(user.Client)
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return err
 	}
 
-	user.Client.DeviceID = id.DeviceID(user.DeviceId)
-	cryptoHelper, err := SetupCryptoHelper(user.Client, []byte(user.PickleKey))
+	cryptoHelper, err := setupCryptoHelper(user.Client, []byte(user.PickleKey))
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

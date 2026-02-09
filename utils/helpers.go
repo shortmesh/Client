@@ -1,0 +1,46 @@
+package utils
+
+import (
+	"crypto/rand"
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	// rand.Read fills the byte slice with cryptographically secure random bytes.
+	// It returns an error if it cannot read enough bytes from the OS source.
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// ExtractBracketContent extracts the content inside the first pair of parentheses in the input string.
+func ExtractBracketContent(input string) (string, error) {
+	start := strings.Index(input, "(")
+	end := strings.Index(input, ")")
+	if start == -1 || end == -1 || end <= start+1 {
+		return "", fmt.Errorf("no content found in brackets")
+	}
+	content := input[start+1 : end]
+	// Remove the "+" character from the content
+	content = strings.ReplaceAll(content, "+", "")
+	return content, nil
+}
+
+// Input validation functions
+func SanitizeUsername(username string) (string, error) {
+	// Remove any whitespace
+	username = strings.TrimSpace(username)
+
+	// Username should be 3-32 characters and contain only letters, numbers, and underscores
+	validUsername := regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
+	if !validUsername.MatchString(username) {
+		return "", fmt.Errorf("username must be 3-32 characters and contain only letters, numbers, and underscores")
+	}
+
+	return username, nil
+}
