@@ -27,8 +27,21 @@ type Users struct {
 	DeviceId    id.DeviceID
 }
 
-func GetUserDB(client *mautrix.Client) (*UsersDB, error) {
-	usersDb := UsersDB{
+func GetClientDB() (*ClientDB, error) {
+	clientDb := ClientDB{
+		Filepath: "db/clients.db",
+	}
+
+	err := clientDb.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientDb, err
+}
+
+func GetUserDB(client mautrix.Client) (*UserDB, error) {
+	usersDb := UserDB{
 		Username: client.UserID.Localpart(),
 		Filepath: "db/" + client.UserID.Localpart() + ".db",
 	}
@@ -85,7 +98,7 @@ func isContact(
 	client *mautrix.Client,
 	contact string,
 ) (bool, error) {
-	usersDb, err := GetUserDB(client)
+	usersDb, err := GetUserDB(*client)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -130,13 +143,25 @@ func isContact(
 }
 
 func (u *Users) Save() error {
-	usersDb, err := GetUserDB(u.Client)
+	usersDb, err := GetUserDB(*u.Client)
 	if err != nil {
 		debug.PrintStack()
 		return err
 	}
 
 	err = usersDb.Store(u.Client.AccessToken, u.RecoveryKey, u.PickleKey)
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+
+	clientDb, err := GetClientDB()
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+
+	err = clientDb.Store(u.Client.UserID.String())
 	if err != nil {
 		debug.PrintStack()
 		return err
@@ -150,7 +175,7 @@ func FetchMessageContact(
 	bridgeName,
 	contact string,
 ) (*string, error) {
-	usersDb, err := GetUserDB(client)
+	usersDb, err := GetUserDB(*client)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -171,4 +196,47 @@ func FetchMessageContact(
 	}
 
 	return roomId, nil
+}
+
+func FetchAllUsers() ([]Users, error) {
+	clientDb, err := GetClientDB()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	fetchedUsers, err := clientDb.FetchUsers()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var users []Users
+	for _, username := range fetchedUsers {
+		client := mautrix.Client{
+			UserID: id.UserID(username),
+		}
+		userDb, err := GetUserDB(client)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		_, accessToken, err := userDb.FetchUser(username)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+
+		client.AccessToken = accessToken
+
+		user := Users{
+			Client: &client,
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }

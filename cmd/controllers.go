@@ -5,7 +5,6 @@ import (
 	// 	"fmt"
 
 	"encoding/json"
-	"fmt"
 	"log"
 	"log/slog"
 	"runtime/debug"
@@ -25,54 +24,44 @@ type Controller struct {
 }
 
 func SyncUsers() error {
-	conf, err := configs.GetConf()
+	users, err := users.FetchAllUsers()
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	// ? Read all users from the database
-	userId := ""
-	accessToken := ""
-	deviceId := ""
-	client, err := mautrix.NewClient(
-		conf.HomeServer,
-		id.UserID(userId),
-		accessToken,
-	)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
+	for _, user := range users {
+		go func() {
+			err = Sync(user)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+			}
+		}()
 	}
-	user := users.Users{
-		Client:      client,
-		RecoveryKey: "",
-		PickleKey:   "",
-		DeviceId:    id.DeviceID(deviceId),
-	}
-	syncUser(client, user)
+
 	return nil
 }
 
-func syncUser(client *mautrix.Client, user users.Users) error {
-	err := rooms.ParseRoomSubroutine(client)
+func Sync(user users.Users) error {
+	slog.Debug("Syncing user", "UserID", user.Client.UserID.String())
+	err := rooms.ParseRoomSubroutine(user.Client)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	client.DeviceID = id.DeviceID(user.DeviceId)
-	cryptoHelper, err := SetupCryptoHelper(client, []byte(user.PickleKey))
+	user.Client.DeviceID = id.DeviceID(user.DeviceId)
+	cryptoHelper, err := SetupCryptoHelper(user.Client, []byte(user.PickleKey))
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 	mc := MatrixClient{
-		Client:       client,
+		Client:       user.Client,
 		CryptoHelper: cryptoHelper,
 	}
 
@@ -97,11 +86,16 @@ func syncUser(client *mautrix.Client, user users.Users) error {
 				debug.PrintStack()
 				continue
 			}
-			fmt.Printf("%s\n", json)
+			slog.Debug("Incoming message", "message", json)
 
-			go (&bridges.Bridges{
-				Client: client,
-			}).ProcessIncomingMessages(evt)
+			// Process incoming from bridges
+			go func() {
+				err = (&bridges.Bridges{Client: mc.Client}).SyncCallback(evt)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+				}
+			}()
 		}
 	}()
 

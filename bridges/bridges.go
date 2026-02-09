@@ -132,7 +132,7 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 
 }
 
-func (b *Bridges) ProcessIncomingMessages(evt *event.Event) error {
+func (b *Bridges) processIncomingMessages(evt *event.Event) error {
 	userType, err := users.GetTypeUser(b.Client, evt.Sender)
 	if err != nil {
 		slog.Error(err.Error())
@@ -271,28 +271,6 @@ func (b *Bridges) queryCommand(query string) error {
 	return nil
 }
 
-func (b *Bridges) checkActiveSessions() (bool, error) {
-	var UsersDB = users.UsersDB{
-		Username: b.Client.UserID.Localpart(),
-		Filepath: "db/" + b.Client.UserID.Localpart() + ".db",
-	}
-
-	if err := UsersDB.Init(); err != nil {
-		return false, err
-	}
-
-	activeSessions, _, err := UsersDB.FetchActiveSessions(b.Client.UserID.Localpart())
-	if err != nil {
-		return false, err
-	}
-
-	if len(activeSessions) == 0 {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 func (b *Bridges) AddDevice() error {
 	// var UsersDB = UsersDB{
 	// 	username: b.Client.UserID.Localpart(),
@@ -344,5 +322,10 @@ func (b *Bridges) Save() error {
 		return err
 	}
 
+	return nil
+}
+
+func (b *Bridges) SyncCallback(evt *event.Event) error {
+	b.processIncomingMessages(evt)
 	return nil
 }
