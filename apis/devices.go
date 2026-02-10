@@ -33,6 +33,16 @@ type ClientAddDevices struct {
 	PlatformName string `json:"platform_name" example:"john_doe"`
 }
 
+// ClientJsonRequest represents login or registration data
+// @Description Request payload for user login or registration
+// @name ClientJsonRequest
+// @type object
+type ClientRemoveDevices struct {
+	Username     string `json:"username" example:"john_doe"`
+	PlatformName string `json:"platform_name" example:"john_doe"`
+	DeviceId     string `json:"device_id" example:"john_doe"`
+}
+
 func GetDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
 
@@ -84,7 +94,7 @@ func GetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
-func AddPlatformDevices(c *gin.Context) {
+func AddDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
 
 	if err != nil {
@@ -131,4 +141,53 @@ func AddPlatformDevices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"status": fmt.Sprintf("Request to create new created for %s", clientAddDevices.PlatformName)})
+}
+
+func RemoveDevices(c *gin.Context) {
+	conf, err := configs.GetConf()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		return
+	}
+
+	var clientRemoveDevices ClientRemoveDevices
+
+	if err := c.BindJSON(&clientRemoveDevices); err != nil {
+		log.Printf("Invalid request payload: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	username, err := utils.SanitizeUsername(clientRemoveDevices.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	client, err := mautrix.NewClient(
+		conf.HomeServer,
+		id.NewUserID(username, conf.HomeServerDomain),
+		"",
+	)
+
+	bridge, err := (&bridges.Bridges{Client: client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		return
+	}
+
+	err = bridge.RemoveDevice(clientRemoveDevices.PlatformName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"status": fmt.Sprintf("Request to remove created for %s", clientRemoveDevices.PlatformName)})
 }

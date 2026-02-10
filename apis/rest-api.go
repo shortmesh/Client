@@ -7,6 +7,3 @@ import (
 func SendPlatformMessage(c *gin.Context) {
 
 }
-func RemovePlatformDevices(c *gin.Context) {
-
-}

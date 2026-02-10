@@ -3,6 +3,7 @@ package bridges
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"regexp"
@@ -272,23 +273,16 @@ func (b *Bridges) queryCommand(query string) error {
 	return nil
 }
 
+func (b *Bridges) RemoveDevice(deviceId string) error {
+	cmd := fmt.Sprintf("%s %s", b.BridgeConfig.Cmd["logout"], deviceId)
+	if err := b.queryCommand(cmd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (b *Bridges) AddDevice() error {
-	// var UsersDB = UsersDB{
-	// 	username: b.Client.UserID.Localpart(),
-	// 	filepath: "db/" + b.Client.UserID.Localpart() + ".db",
-	// }
-
-	// if err := UsersDB.Init(); err != nil {
-	// 	return err
-	// }
-
-	// TODO:
-	// activeSessions, err := b.checkActiveSessions()
-	// if err != nil {
-	// 	log.Println("Failed checking active sessions", err)
-	// 	return err
-	// }
-
 	if err := b.queryCommand(b.BridgeConfig.Cmd["login"]); err != nil {
 		return err
 	}
