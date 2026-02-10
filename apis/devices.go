@@ -11,6 +11,7 @@ import (
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
@@ -43,6 +44,17 @@ type ClientRemoveDevices struct {
 	DeviceId     string `json:"device_id" example:"john_doe"`
 }
 
+// ApiLogin godoc
+// @Summary Logs a user into the Matrix server
+// @Description Authenticates a user and returns an access token
+// @Accept  json
+// @Produce  json
+// @Param   payload body ClientGetDevices true "Login Credentials"
+// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Login failed"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /devices [get]
 func GetDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
 
@@ -94,6 +106,17 @@ func GetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
+// ApiLogin godoc
+// @Summary Logs a user into the Matrix server
+// @Description Authenticates a user and returns an access token
+// @Accept  json
+// @Produce  json
+// @Param   payload body ClientAddDevices true "Login Credentials"
+// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Login failed"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /devices [post]
 func AddDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
 
@@ -124,6 +147,13 @@ func AddDevices(c *gin.Context) {
 		"",
 	)
 
+	user, err := users.FetchUser(client, username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
+		return
+	}
+	client.AccessToken = user.Client.AccessToken
+
 	bridge, err := (&bridges.Bridges{Client: client}).LookupBridgeByName(clientAddDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
@@ -143,6 +173,17 @@ func AddDevices(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": fmt.Sprintf("Request to create new created for %s", clientAddDevices.PlatformName)})
 }
 
+// ApiLogin godoc
+// @Summary Logs a user into the Matrix server
+// @Description Authenticates a user and returns an access token
+// @Accept  json
+// @Produce  json
+// @Param   payload body ClientRemoveDevices true "Login Credentials"
+// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Login failed"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /devices [delete]
 func RemoveDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
 
@@ -172,6 +213,13 @@ func RemoveDevices(c *gin.Context) {
 		id.NewUserID(username, conf.HomeServerDomain),
 		"",
 	)
+
+	user, err := users.FetchUser(client, username)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
+		return
+	}
+	client.AccessToken = user.Client.AccessToken
 
 	bridge, err := (&bridges.Bridges{Client: client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
 	if err != nil {

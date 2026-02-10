@@ -203,6 +203,30 @@ func FetchMessageContact(
 	return roomId, nil
 }
 
+func FetchUser(client *mautrix.Client, username string) (*Users, error) {
+	userDb, err := GetUserDB(client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(username)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	client.AccessToken = accessToken
+	client.DeviceID = id.DeviceID(deviceId)
+
+	return &Users{
+		Client:    client,
+		PickleKey: pickleKey,
+	}, nil
+}
+
 func FetchAllUsers() ([]Users, error) {
 	clientDb, err := GetClientDB()
 	if err != nil {
@@ -231,27 +255,14 @@ func FetchAllUsers() ([]Users, error) {
 			id.UserID(username),
 			"",
 		)
-		userDb, err := GetUserDB(client)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(username)
+		user, err := FetchUser(client, username)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
 			return nil, err
 		}
 
-		client.AccessToken = accessToken
-		client.DeviceID = id.DeviceID(deviceId)
-
-		user := Users{
-			Client:    client,
-			PickleKey: pickleKey,
-		}
-		users = append(users, user)
+		users = append(users, *user)
 	}
 	return users, nil
 }

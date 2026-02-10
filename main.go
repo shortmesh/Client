@@ -51,8 +51,8 @@ func RestAPIRoutines() {
 	router.POST("/store", apis.Store)
 	router.GET("/devices", apis.GetDevices)
 	router.POST("/devices", apis.AddDevices)
-	router.DELETE("/devices/:deviceId", apis.RemovePlatformDevices)
-	router.POST("/devices/:deviceId/message", apis.SendPlatformMessage)
+	router.DELETE("/devices/:deviceId", apis.RemoveDevices)
+	router.POST("/devices/:deviceId/message", apis.SendMessage)
 
 	cfg, err := configs.GetConf()
 	if err != nil {
