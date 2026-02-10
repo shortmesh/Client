@@ -31,7 +31,6 @@ func (m *MatrixClient) Login(password string) error {
 		Identifier:       identifier,
 		Password:         password,
 		StoreCredentials: true,
-		DeviceID:         m.Client.DeviceID,
 	})
 	if err != nil {
 		slog.Error(err.Error())

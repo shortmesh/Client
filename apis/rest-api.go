@@ -4,10 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Store(c *gin.Context) {
-
-}
-
 func AuthUrl(c *gin.Context) {
 
 }
