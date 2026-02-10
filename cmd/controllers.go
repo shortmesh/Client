@@ -13,6 +13,7 @@ import (
 
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
@@ -23,6 +24,15 @@ import (
 
 type Controller struct {
 	Client *mautrix.Client
+}
+
+func (c *Controller) GetDevices() ([]devices.Devices, error) {
+	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	return devices, nil
 }
 
 // !This should be used if account reset is on the table

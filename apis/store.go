@@ -18,7 +18,8 @@ import (
 // @type object
 type ApiStoreRequestJson struct {
 	Username    string `json:"username" example:"john_doe"`
-	AccessToken string `json:"access_token" example:"securepassword123"`
+	AccessToken string `json:"access_token" example:""`
+	DeviceId    string `json:"device_id" example:""`
 }
 
 // Store godoc

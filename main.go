@@ -49,10 +49,8 @@ func RestAPIRoutines() {
 
 	router.POST("/login", apis.Login)
 	router.POST("/store", apis.Store)
-	router.POST("/auth-url", apis.AuthUrl)
-	router.POST("/health", apis.Health)
-	router.GET("/:platform/devices", apis.GetPlatformDevices)
-	router.POST("/:platform/devices", apis.AddPlatformDevices)
+	router.GET("/devices", apis.GetDevices)
+	router.POST("/devices", apis.AddPlatformDevices)
 	router.DELETE("/:platform/devices/:deviceId", apis.RemovePlatformDevices)
 	router.POST("/:platform/devices/:deviceId/message", apis.SendPlatformMessage)
 

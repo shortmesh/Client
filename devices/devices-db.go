@@ -34,7 +34,44 @@ func (d *DeviceDB) Init() error {
 	return err
 }
 
-func (d *DeviceDB) fetchDevice(deviceId string) (*[]string, error) {
+func (d *DeviceDB) fetchDevices() ([][]string, error) {
+	stmt, err := d.connection.Prepare(
+		"select device_id, bridge_name from devices",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var devices [][]string
+	for rows.Next() {
+		var bridgeName string
+		var deviceId string
+
+		if err := rows.Scan(&bridgeName, &deviceId); err != nil {
+			return nil, err
+		}
+
+		device := []string{bridgeName, deviceId}
+		devices = append(devices, device)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return devices, nil
+}
+
+func (d *DeviceDB) fetchDevice(deviceId string) ([]string, error) {
 	stmt, err := d.connection.Prepare(
 		"select device_id, bridge_name from devices where device_id = ?",
 	)
@@ -59,7 +96,7 @@ func (d *DeviceDB) fetchDevice(deviceId string) (*[]string, error) {
 			return nil, err
 		}
 
-		return &[]string{bridgeName, deviceId}, err
+		return []string{bridgeName, deviceId}, err
 	}
 
 	if err := rows.Err(); err != nil {

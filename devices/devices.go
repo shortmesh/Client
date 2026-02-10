@@ -36,7 +36,7 @@ func IsDevice(client *mautrix.Client, deviceId string) (bool, error) {
 		return false, err
 	}
 
-	if len(*devices) > 0 {
+	if len(devices) > 0 {
 		return true, nil
 	}
 
@@ -58,4 +58,27 @@ func (d *Devices) Save() error {
 	}
 
 	return nil
+}
+
+func (d *Devices) GetDevices() ([]Devices, error) {
+	devicesDb, err := GetDeviceDB(d.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	fetchedDevices, err := devicesDb.fetchDevices()
+
+	var devices []Devices
+	for _, deviceEntry := range fetchedDevices {
+		device := Devices{ //device_id, bridge_name
+			Client:     d.Client,
+			DeviceId:   deviceEntry[0],
+			BridgeName: deviceEntry[1],
+		}
+		devices = append(devices, device)
+	}
+
+	return devices, nil
 }
