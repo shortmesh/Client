@@ -145,7 +145,7 @@ func (UserDB *UserDB) Store(
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO user (username, access_token, recovery_key, device_id, pickle_key, timestamp) 
+		INSERT OR IGNORE INTO user (username, access_token, recovery_key, device_id, pickle_key, timestamp) 
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
