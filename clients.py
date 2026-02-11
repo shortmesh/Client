@@ -8,12 +8,12 @@ import json
 def list_devices(username):
     url = "http://localhost:8080/devices"
     payload = { "username" : username, }
+    print(payload)
     response = requests.get(url, json=payload)
 
     response.raise_for_status()
 
     if response.status_code == 200:
-        print("User created successfully...")
         print(json.dumps(response.json(), indent=4))
 
 def login(username, password):

@@ -61,6 +61,12 @@ func Store(c *gin.Context) {
 	}
 
 	pickleKey, err := utils.GenerateRandomBytes(32)
+	if err != nil {
+		slog.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		return
+	}
+
 	err = (&users.Users{
 		Client:      client,
 		RecoveryKey: "",
@@ -73,5 +79,5 @@ func Store(c *gin.Context) {
 		return
 	}
 
-	slog.Debug("Saved user", "username", client.UserID)
+	c.JSON(http.StatusOK, "User stored!")
 }

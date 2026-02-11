@@ -67,14 +67,17 @@ func GetDevices(c *gin.Context) {
 
 	var clientGetDevices ClientGetDevices
 
-	if err := c.ShouldBindQuery(&clientGetDevices); err != nil {
-		log.Printf("Invalid request payload: %v", err)
+	if err := c.BindJSON(&clientGetDevices); err != nil {
+		slog.Error("Invalid request payload", "payload", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
+	fmt.Printf("%v\n", clientGetDevices)
 
 	username, err := utils.SanitizeUsername(clientGetDevices.Username)
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -91,6 +94,7 @@ func GetDevices(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 		return
 	}
+	slog.Debug("Fetching devices", "username", username)
 
 	devices, err := (&cmd.Controller{
 		Client: client,
@@ -103,7 +107,7 @@ func GetDevices(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, devices)
+	c.IndentedJSON(http.StatusOK, devices)
 }
 
 // AddDevices godoc

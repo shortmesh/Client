@@ -9,9 +9,9 @@ import (
 )
 
 type Devices struct {
-	Client     *mautrix.Client
-	DeviceId   string
-	BridgeName string
+	Client     *mautrix.Client `json:"-"`
+	DeviceId   string          `json:"device_id"`
+	BridgeName string          `json:"bridge_name"`
 }
 
 func GetDeviceDB(client *mautrix.Client) (*DeviceDB, error) {
@@ -69,6 +69,12 @@ func (d *Devices) GetDevices() ([]Devices, error) {
 	}
 
 	fetchedDevices, err := devicesDb.fetchDevices()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	slog.Debug("Fetch devices", "# found", len(fetchedDevices))
 
 	var devices []Devices
 	for _, deviceEntry := range fetchedDevices {
