@@ -12,34 +12,29 @@
     
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
 
-## Running (none production)
+ ## Requirements
+ - golang
+ - swagger
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+go get github.com/swaggo/http-swagger
+go get github.com/swaggo/files # optional, but useful for serving the swagger files
+export PATH=$PATH:$(go env GOPATH)/bin
+```
+
+## Running
 ```bash
 cp conf.yaml.example conf.yaml
 go mod tidy
+
 go run .
 ```
- 
-## Schemas
-```
-Users
-____
-user_name string ""
 
-access_token string ""
+## API docs
+You can configure your API address in conf.yaml. This would be same address you can access your generated swagger API docs.
 
-```
-
-```
-Rooms
-────
-room_id string ""
-
-room_type enum direct | management | group
-
-is_encrypted boolean # True is bridge is encrypted
-
-bridge_name string # The actual name is exposed to the bridge; mostly used to ID groups 
-
+```bash
+swag init
 ```
 
 ## Notes
