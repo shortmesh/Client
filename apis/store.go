@@ -60,6 +60,7 @@ func Store(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	client.DeviceID = id.DeviceID(apiStoreRequestJson.DeviceId)
 
 	pickleKey, err := utils.GenerateRandomBytes(32)
 	if err != nil {
