@@ -11,6 +11,8 @@ import (
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/rabbitmq"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	// "maunium.net/go/mautrix/id"
 )
 
@@ -53,6 +55,8 @@ func RestAPIRoutines() {
 	router.POST("/devices", apis.AddDevices)
 	router.DELETE("/devices/:deviceId", apis.RemoveDevices)
 	router.POST("/devices/:deviceId/message", apis.SendMessage)
+
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	cfg, err := configs.GetConf()
 	if err != nil {

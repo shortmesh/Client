@@ -32,7 +32,7 @@ type ApiStoreRequestJson struct {
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
-// @Router /login [post]
+// @Router /store [post]
 func Store(c *gin.Context) {
 	conf, err := configs.GetConf()
 	var apiStoreRequestJson ApiStoreRequestJson

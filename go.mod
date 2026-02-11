@@ -43,6 +43,8 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
+	github.com/swaggo/files v1.0.1 // indirect
+	github.com/swaggo/http-swagger v1.3.4 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

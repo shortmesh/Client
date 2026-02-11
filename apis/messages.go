@@ -15,9 +15,9 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// ClientJsonRequest represents login or registration data
+// DeviceSendTextMessage represents login or registration data
 // @Description Request payload for user login or registration
-// @name ClientJsonRequest
+// @name DeviceSendTextMessage
 // @type object
 type DeviceSendTextMessage struct {
 	Username     string `json:"username" example:"john_doe"`
@@ -28,11 +28,11 @@ type DeviceSendTextMessage struct {
 }
 
 // ApiLogin godoc
-// @Summary Logs a user into the Matrix server
+// @Summary Sends a new message for a specific bridge device
 // @Description Authenticates a user and returns an access token
 // @Accept  json
 // @Produce  json
-// @Param   payload body ClientRemoveDevices true "Login Credentials"
+// @Param   payload body DeviceSendTextMessage true "Send Messages"
 // @Success 200 {object} LoginResponse "Successfully logged in"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"

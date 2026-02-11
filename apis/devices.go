@@ -17,26 +17,26 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// ClientJsonRequest represents login or registration data
+// ClientGetDevices represents login or registration data
 // @Description Request payload for user login or registration
-// @name ClientJsonRequest
+// @name ClientGetDevices
 // @type object
 type ClientGetDevices struct {
 	Username string `json:"username" example:"john_doe"`
 }
 
-// ClientJsonRequest represents login or registration data
+// ClientAddDevices represents login or registration data
 // @Description Request payload for user login or registration
-// @name ClientJsonRequest
+// @name ClientAddDevices
 // @type object
 type ClientAddDevices struct {
 	Username     string `json:"username" example:"john_doe"`
 	PlatformName string `json:"platform_name" example:"john_doe"`
 }
 
-// ClientJsonRequest represents login or registration data
+// ClientRemoveDevices represents login or registration data
 // @Description Request payload for user login or registration
-// @name ClientJsonRequest
+// @name ClientRemoveDevices
 // @type object
 type ClientRemoveDevices struct {
 	Username     string `json:"username" example:"john_doe"`
@@ -44,13 +44,13 @@ type ClientRemoveDevices struct {
 	DeviceId     string `json:"device_id" example:"john_doe"`
 }
 
-// ApiLogin godoc
-// @Summary Logs a user into the Matrix server
+// GetDevices godoc
+// @Summary Fetches all the active devices for the user
 // @Description Authenticates a user and returns an access token
 // @Accept  json
 // @Produce  json
 // @Param   payload body ClientGetDevices true "Login Credentials"
-// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Success 200 {object} []Devices "Successfully logged in"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
@@ -106,13 +106,13 @@ func GetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
-// ApiLogin godoc
-// @Summary Logs a user into the Matrix server
+// AddDevices godoc
+// @Summary Adds a new user bridge device for a platform
 // @Description Authenticates a user and returns an access token
 // @Accept  json
 // @Produce  json
 // @Param   payload body ClientAddDevices true "Login Credentials"
-// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Success 200 {object} "Successfully added device"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
@@ -173,8 +173,8 @@ func AddDevices(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": fmt.Sprintf("Request to create new created for %s", clientAddDevices.PlatformName)})
 }
 
-// ApiLogin godoc
-// @Summary Logs a user into the Matrix server
+// RemoveDevices godoc
+// @Summary Removes a user bridge device for a platform
 // @Description Authenticates a user and returns an access token
 // @Accept  json
 // @Produce  json
