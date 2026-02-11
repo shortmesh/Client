@@ -45,6 +45,7 @@ func Store(c *gin.Context) {
 
 	username, err := utils.SanitizeUsername(apiStoreRequestJson.Username)
 	if err != nil {
+		slog.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -54,9 +55,9 @@ func Store(c *gin.Context) {
 		id.NewUserID(username, conf.HomeServerDomain),
 		apiStoreRequestJson.AccessToken,
 	)
-	if err := c.BindJSON(&apiStoreRequestJson); err != nil {
+	if err != nil {
 		slog.Error(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
