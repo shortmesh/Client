@@ -12,14 +12,10 @@
     
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
 
-## Configuration and running
-### Configuration
+## Running (none production)
 ```bash
 cp conf.yaml.example conf.yaml
-```
-
-### Running (none production)
-```bash
+go mod tidy
 go run .
 ```
  
