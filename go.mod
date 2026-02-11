@@ -7,6 +7,8 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/swaggo/files v1.0.1
+	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.4
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.24.0
@@ -36,15 +38,13 @@ require (
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/petermattis/goid v0.0.0-20250508124226-395b08cebbdb // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
-	github.com/swaggo/files v1.0.1 // indirect
-	github.com/swaggo/http-swagger v1.3.4 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

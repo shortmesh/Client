@@ -46,8 +46,6 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 		}
 	}
 
-	slog.Debug("Found brige bot", "username", bridgeBotContact)
-
 	conf, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
@@ -75,21 +73,15 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 	return nil, nil
 }
 
-func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, message string) (*Bridges, error) {
-	bridge, err := reverseForBridgeBot(client, roomdId)
-	slog.Debug("Processing incoming bot message", "name", bridge.BridgeConfig.Name)
-
-	// 123456789 (+123456789) - CONNECTED
-	cmd := bridge.BridgeConfig.Cmd["list-logins"]
+func (b *Bridges) checkIfLoginMessage(message string) (bool, error) {
+	cmd := b.BridgeConfig.Cmd["list-logins"]
 	cmd = regexp.QuoteMeta(cmd)
-	slog.Debug("cmd", "list-logins", cmd)
 	regexPattern := strings.ReplaceAll(cmd, "%s", ".*")
-	slog.Debug("cmd-regex", "list-logins", regexPattern)
 	matched, err := regexp.MatchString(regexPattern, message)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return nil, err
+		return false, err
 	}
 
 	if matched {
@@ -97,35 +89,96 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return nil, err
+			return false, err
 		}
 
 		cfg, err := configs.GetConf()
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return nil, err
+			return false, err
 		}
-		deviceId, err = cfg.FormatUsername(bridge.BridgeConfig.Name, deviceId)
+		deviceId, err = cfg.FormatUsername(b.BridgeConfig.Name, deviceId)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return nil, err
+			return false, err
 		}
 
-		slog.Debug("Saving device", "bridgeName", bridge.BridgeConfig.Name)
+		slog.Debug("Saving device", "bridgeName", b.BridgeConfig.Name)
 
 		err = (&devices.Devices{
-			Client:     client,
+			Client:     b.Client,
 			DeviceId:   deviceId,
-			BridgeName: bridge.BridgeConfig.Name,
+			BridgeName: b.BridgeConfig.Name,
 		}).Save()
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return nil, err
+			return false, err
 		}
 		slog.Debug("Saved new device", "name", deviceId)
+	}
+	return false, nil
+}
+
+func (b *Bridges) checkIfSuccess(message string) (bool, error) {
+	regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
+	matched, err := regexp.MatchString(regexPattern, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	if matched {
+		deviceId := strings.Fields(message)[0]
+		(&devices.Devices{
+			Client:     b.Client,
+			DeviceId:   deviceId,
+			BridgeName: b.BridgeConfig.Name,
+		}).Save()
+		slog.Debug("Saved new device", "name", deviceId)
+	}
+	return false, nil
+}
+
+/*
+- BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
+when list-devices is ran to delete devices which are deactivated
+*/
+func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, message string) (*Bridges, error) {
+	bridge, err := reverseForBridgeBot(client, roomdId)
+	if bridge == nil {
+		return nil, nil
+	}
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	slog.Debug("processing incoming for bridge", "name", bridge.BridgeConfig.Name, "message", message)
+
+	isLoginMatched, err := bridge.checkIfLoginMessage(message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	if isLoginMatched {
+		return nil, err
+	}
+
+	isSuccessMatched, err := bridge.checkIfSuccess(message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	if isSuccessMatched {
+		return nil, err
 	}
 
 	// TODO: insert other possiblities
@@ -156,48 +209,8 @@ func (b *Bridges) processIncomingMessages(evt *event.Event) error {
 		return nil
 	}
 
-	bridge, err := b.LookupBridgeByRoomId(evt.RoomID.String())
-	if err != nil || bridge == nil {
-		if bridge == nil {
-			slog.Error(err.Error())
-		}
-		return err
-	}
-	slog.Debug("New bridge event", "roomID", evt.RoomID,
-		"event sender", evt.Sender, "event timestamp", evt.Timestamp, "event type", evt.Type)
+	// TODO: process other incoming messages for bridges
 
-	conf, err := configs.GetConf()
-	if err != nil {
-		return nil
-	}
-
-	for _, confBridge := range conf.Bridges {
-		if confBridge.Name == bridge.BridgeConfig.Name {
-			slog.Debug("[+] Found bridge in configs!\n")
-			b.BridgeConfig = confBridge
-		}
-	}
-
-	if evt.Sender != b.Client.UserID {
-		regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
-		matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-
-		if matched {
-			deviceId := strings.Fields(evt.Content.AsMessage().Body)[0]
-			(&devices.Devices{
-				Client:     b.Client,
-				DeviceId:   deviceId,
-				BridgeName: bridge.BridgeConfig.Name,
-			}).Save()
-			slog.Debug("Saved new device", "name", deviceId)
-		}
-
-	}
 	return nil
 }
 
@@ -249,6 +262,19 @@ func (b *Bridges) LookupBridgeByRoomId(roomId string) (*Bridges, error) {
 	bridgeName, err := roomsDb.FetchRoomByRoomId(roomId)
 	if err != nil {
 		return nil, err
+	}
+
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, confBridge := range conf.Bridges {
+		if confBridge.Name == bridgeName {
+			b.BridgeConfig = confBridge
+		}
 	}
 
 	return (&Bridges{
