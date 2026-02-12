@@ -5,17 +5,22 @@ import (
 	"log/slog"
 	"os"
 	"runtime/debug"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/apis"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/docs"
+	_ "github.com/shortmesh/core/docs"
 	"github.com/shortmesh/core/rabbitmq"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	// "maunium.net/go/mautrix/id"
 )
 
+// @title ShortMesh - Client API
+// @version 1.0
 func main() {
 	var programLevel slog.LevelVar
 	programLevel.Set(slog.LevelDebug) // Set initial level to Debug
@@ -49,23 +54,30 @@ func RestAPIRoutines() {
 		c.Next()
 	})
 
-	router.POST("/login", apis.Login)
-	router.POST("/store", apis.Store)
-	router.GET("/devices", apis.GetDevices)
-	router.POST("/devices", apis.AddDevices)
-	router.DELETE("/devices/:deviceId", apis.RemoveDevices)
-	router.POST("/devices/:deviceId/message", apis.SendMessage)
-
-	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
 	cfg, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return
 	}
+
+	apiVersion := cfg.ApiVersion
 	host := cfg.Server.Host
 	port := cfg.Server.Port
+
+	docs.SwaggerInfo.Title = "ShortMesh - Client API"
+	docs.SwaggerInfo.Version = strconv.Itoa(apiVersion)
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%s", host, port)
+	docs.SwaggerInfo.BasePath = fmt.Sprintf("/api/v%d", apiVersion)
+
+	router.POST(fmt.Sprintf("/api/v%d/login", apiVersion), apis.Login)
+	router.POST(fmt.Sprintf("/api/v%d/store", apiVersion), apis.Store)
+	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
+	router.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
+	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
+	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
+
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	tlsCert := cfg.Server.Tls.Crt
 	tlsKey := cfg.Server.Tls.Key

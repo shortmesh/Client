@@ -32,6 +32,7 @@ type BridgeConfig struct {
 }
 
 type Conf struct {
+	ApiVersion       int            `yaml:"api_version"`
 	Server           Server         `yaml:"server"`
 	KeystoreFilepath string         `yaml:"keystore_filepath"`
 	HomeServer       string         `yaml:"homeserver"`
