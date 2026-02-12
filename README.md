@@ -21,6 +21,18 @@ go get github.com/swaggo/http-swagger
 go get github.com/swaggo/files # optional, but useful for serving the swagger files
 export PATH=$PATH:$(go env GOPATH)/bin
 ```
+- libolm
+> Mac OS
+```bash
+brew install libolm
+export CGO_CFLAGS="-I/opt/homebrew/include"
+export CGO_LDFLAGS="-L/opt/homebrew/lib"
+```
+
+> Ubuntu
+```bash
+sudo apt install libolm-dev
+```
 
 ## Running
 ```bash
