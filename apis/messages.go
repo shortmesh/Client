@@ -37,7 +37,7 @@ type DeviceSendTextMessage struct {
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /devices/:deviceId/message [post]
+// @Router /devices/{deviceId}/message [post]
 func SendMessage(c *gin.Context) {
 
 	conf, err := configs.GetConf()
