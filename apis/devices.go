@@ -157,7 +157,7 @@ func AddDevices(c *gin.Context) {
 		"",
 	)
 
-	user, err := users.FetchUser(client, username)
+	user, err := users.FetchUser(client)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
 		return
@@ -224,7 +224,7 @@ func RemoveDevices(c *gin.Context) {
 		"",
 	)
 
-	user, err := users.FetchUser(client, username)
+	user, err := users.FetchUser(client)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
 		return

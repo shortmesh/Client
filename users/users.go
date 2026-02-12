@@ -203,7 +203,7 @@ func FetchMessageContact(
 	return roomId, nil
 }
 
-func FetchUser(client *mautrix.Client, username string) (*Users, error) {
+func FetchUser(client *mautrix.Client) (*Users, error) {
 	userDb, err := GetUserDB(client)
 	if err != nil {
 		slog.Error(err.Error())
@@ -211,7 +211,7 @@ func FetchUser(client *mautrix.Client, username string) (*Users, error) {
 		return nil, err
 	}
 
-	_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(username)
+	_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(client.UserID.String())
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -255,7 +255,7 @@ func FetchAllUsers() ([]Users, error) {
 			id.UserID(username),
 			"",
 		)
-		user, err := FetchUser(client, username)
+		user, err := FetchUser(client)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
