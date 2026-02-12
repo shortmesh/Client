@@ -45,12 +45,12 @@ type ClientRemoveDevices struct {
 }
 
 // GetDevices godoc
-// @Summary Fetches all the active devices for the user
-// @Description Authenticates a user and returns an access token
+// @Summary Fetches all active devices for the user
+// @Description Retrieves device information for a user
 // @Accept  json
 // @Produce  json
-// @Param   payload body ClientGetDevices true "Login Credentials"
-// @Success 200 {object} []Devices "Successfully logged in"
+// @Param   payload body ClientGetDevices true "User Credentials"
+// @Success 200 {object} []type.Devices "Successfully retrieved devices"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
@@ -111,12 +111,12 @@ func GetDevices(c *gin.Context) {
 }
 
 // AddDevices godoc
-// @Summary Adds a new user bridge device for a platform
-// @Description Authenticates a user and returns an access token
+// @Summary Adds a new bridge device for a platform
+// @Description Adds a new user bridge device for the specified platform
 // @Accept  json
 // @Produce  json
-// @Param   payload body ClientAddDevices true "Login Credentials"
-// @Success 200 {object} "Successfully added device"
+// @Param   payload body ClientAddDevices true "User Credentials"
+// @Success 201 {object} map[string]string "Successfully added device"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
@@ -178,12 +178,12 @@ func AddDevices(c *gin.Context) {
 }
 
 // RemoveDevices godoc
-// @Summary Removes a user bridge device for a platform
-// @Description Authenticates a user and returns an access token
+// @Summary Removes a bridge device for a platform
+// @Description Removes a user bridge device for the specified platform
 // @Accept  json
 // @Produce  json
-// @Param   payload body ClientRemoveDevices true "Login Credentials"
-// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Param   payload body ClientRemoveDevices true "User Credentials"
+// @Success 201 {object} map[string]string "Successfully removed device"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"

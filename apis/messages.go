@@ -15,8 +15,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// DeviceSendTextMessage represents login or registration data
-// @Description Request payload for user login or registration
+// DeviceSendTextMessage represents payload for sending a text message
+// @Description Request payload for sending a text message
 // @name DeviceSendTextMessage
 // @type object
 type DeviceSendTextMessage struct {
@@ -27,17 +27,17 @@ type DeviceSendTextMessage struct {
 	Text         string `json:"text" example:"john_doe"`
 }
 
-// ApiLogin godoc
-// @Summary Sends a new message for a specific bridge device
-// @Description Authenticates a user and returns an access token
+// SendMessage godoc
+// @Summary Sends a text message via bridge device
+// @Description Sends a text message using the provided credentials and bridge details
 // @Accept  json
 // @Produce  json
 // @Param   payload body DeviceSendTextMessage true "Send Messages"
-// @Success 200 {object} LoginResponse "Successfully logged in"
+// @Success 201 {object} map[string]string "Message sent successfully"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
-// @Router /devices [delete]
+// @Router /devices/:deviceId/message [post]
 func SendMessage(c *gin.Context) {
 
 	conf, err := configs.GetConf()

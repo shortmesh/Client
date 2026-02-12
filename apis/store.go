@@ -23,12 +23,12 @@ type ApiStoreRequestJson struct {
 }
 
 // Store godoc
-// @Summary Logs a user into the Matrix server
+// @Summary Store user credentials for syncing
 // @Description Stores the user's access token to be used for Syncing
 // @Accept  json
 // @Produce  json
 // @Param   payload body ApiStoreRequestJson true "Login Credentials"
-// @Success 200 {object} LoginResponse "Successfully stored"
+// @Success 200 {string} string "User stored!" "Successfully stored"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Login failed"
 // @Failure 500 {object} ErrorResponse "Internal server error"
