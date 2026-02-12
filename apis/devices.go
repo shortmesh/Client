@@ -11,6 +11,7 @@ import (
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
@@ -96,7 +97,8 @@ func GetDevices(c *gin.Context) {
 	}
 	slog.Debug("Fetching devices", "username", username)
 
-	devices, err := (&cmd.Controller{
+	devices := make([]devices.Devices, 0)
+	fetchDevices, err := (&cmd.Controller{
 		Client: client,
 	}).GetDevices()
 
@@ -105,6 +107,10 @@ func GetDevices(c *gin.Context) {
 		debug.PrintStack()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 		return
+	}
+
+	if fetchDevices != nil {
+		devices = fetchDevices
 	}
 
 	c.IndentedJSON(http.StatusOK, devices)

@@ -6,7 +6,7 @@ import requests
 import json
 
 def store(username, accessToken, deviceId):
-    url = "http://localhost:8080/store"
+    url = "http://localhost:8080/api/v1/store"
     payload = { 
         "username" : username, 
         "access_token" : accessToken, 
@@ -21,7 +21,7 @@ def store(username, accessToken, deviceId):
         print(json.dumps(response.json(), indent=4))
 
 def list_devices(username):
-    url = "http://localhost:8080/devices"
+    url = "http://localhost:8080/api/v1/devices"
     payload = { "username" : username, }
     print(payload)
     response = requests.get(url, json=payload)
@@ -32,7 +32,7 @@ def list_devices(username):
         print(json.dumps(response.json(), indent=4))
 
 def login(username, password):
-    url = "http://localhost:8080/login"
+    url = "http://localhost:8080/api/v1/login"
     payload = {
         "username" : username,
         "password" : password,
