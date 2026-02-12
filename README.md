@@ -36,6 +36,7 @@ You can configure your API address in conf.yaml. This would be same address you 
 ```bash
 swag init
 ```
+> [host]/api/v1/index.html
 
 ## Notes
 ### Postgres issues
