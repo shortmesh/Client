@@ -34,9 +34,9 @@ type DeviceSendTextMessage struct {
 // @Produce  json
 // @Param   payload body DeviceSendTextMessage true "Send Messages"
 // @Success 201 {object} map[string]string "Message sent successfully"
-// @Failure 400 {object} ErrorResponse "Invalid request"
-// @Failure 401 {object} ErrorResponse "Login failed"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Login failed"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /devices/:deviceId/message [post]
 func SendMessage(c *gin.Context) {
 

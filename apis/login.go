@@ -40,10 +40,10 @@ func validatePassword(password string) (string, error) {
 // @Accept  json
 // @Produce  json
 // @Param   payload body ClientJsonRequest true "Login Credentials"
-// @Success 200 {object} LoginResponse "Successfully logged in"
-// @Failure 400 {object} ErrorResponse "Invalid request"
-// @Failure 401 {object} ErrorResponse "Login failed"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Success 201 {object} map[string]string "Message sent successfully"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Login failed"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /login [post]
 func Login(c *gin.Context) {
 	conf, err := configs.GetConf()

@@ -50,10 +50,10 @@ type ClientRemoveDevices struct {
 // @Accept  json
 // @Produce  json
 // @Param   payload body ClientGetDevices true "User Credentials"
-// @Success 200 {object} []type.Devices "Successfully retrieved devices"
-// @Failure 400 {object} ErrorResponse "Invalid request"
-// @Failure 401 {object} ErrorResponse "Login failed"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Success 200 {object} []devices.Devices "Successfully retrieved devices"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Login failed"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /devices [get]
 func GetDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
@@ -117,9 +117,9 @@ func GetDevices(c *gin.Context) {
 // @Produce  json
 // @Param   payload body ClientAddDevices true "User Credentials"
 // @Success 201 {object} map[string]string "Successfully added device"
-// @Failure 400 {object} ErrorResponse "Invalid request"
-// @Failure 401 {object} ErrorResponse "Login failed"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Login failed"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /devices [post]
 func AddDevices(c *gin.Context) {
 	conf, err := configs.GetConf()
@@ -184,9 +184,9 @@ func AddDevices(c *gin.Context) {
 // @Produce  json
 // @Param   payload body ClientRemoveDevices true "User Credentials"
 // @Success 201 {object} map[string]string "Successfully removed device"
-// @Failure 400 {object} ErrorResponse "Invalid request"
-// @Failure 401 {object} ErrorResponse "Login failed"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Login failed"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /devices [delete]
 func RemoveDevices(c *gin.Context) {
 	conf, err := configs.GetConf()

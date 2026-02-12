@@ -1,62 +1,244 @@
 {
-    "schemes": [
-        "http",
-        "https"
-    ],
     "swagger": "2.0",
     "info": {
-        "description": "Represents a webhook structure with device name, URL, method, and timestamp",
-        "title": "ShortMesh API",
-        "contact": {},
-        "version": "1.0"
+        "contact": {}
     },
-    "host": "localhost:8080",
-    "basePath": "/",
     "paths": {
-        "/": {
-            "post": {
-                "description": "Registers a new user and returns an access token",
+        "/devices": {
+            "get": {
+                "description": "Retrieves device information for a user",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Creates a new user on the Matrix server",
+                "summary": "Fetches all active devices for the user",
                 "parameters": [
                     {
-                        "description": "User Registration",
+                        "description": "User Credentials",
                         "name": "payload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.ClientJsonRequest"
+                            "$ref": "#/definitions/apis.ClientGetDevices"
                         }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Successfully created user",
+                    "200": {
+                        "description": "Successfully retrieved devices",
                         "schema": {
-                            "$ref": "#/definitions/main.LoginResponse"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/devices.Devices"
+                            }
                         }
                     },
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
-                    "409": {
-                        "description": "User creation failed",
+                    "401": {
+                        "description": "Login failed",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Adds a new user bridge device for the specified platform",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Adds a new bridge device for a platform",
+                "parameters": [
+                    {
+                        "description": "User Credentials",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/apis.ClientAddDevices"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully added device",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Login failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Removes a user bridge device for the specified platform",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Removes a bridge device for a platform",
+                "parameters": [
+                    {
+                        "description": "User Credentials",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/apis.ClientRemoveDevices"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully removed device",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Login failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/devices/:deviceId/message": {
+            "post": {
+                "description": "Sends a text message using the provided credentials and bridge details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Sends a text message via bridge device",
+                "parameters": [
+                    {
+                        "description": "Send Messages",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/apis.DeviceSendTextMessage"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Message sent successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Login failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -79,307 +261,103 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.ClientJsonRequest"
+                            "$ref": "#/definitions/apis.ClientJsonRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Successfully logged in",
+                    "201": {
+                        "description": "Message sent successfully",
                         "schema": {
-                            "$ref": "#/definitions/main.LoginResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
                         "description": "Login failed",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
             }
         },
-        "/{platform}/device/{device_name}/webhook": {
+        "/store": {
             "post": {
-                "description": "Adds a webhook for a given device",
+                "description": "Stores the user's access token to be used for Syncing",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Adds a webhook for a given device",
+                "summary": "Store user credentials for syncing",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Platform Name",
-                        "name": "platform",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Device Name",
-                        "name": "device_name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "URL",
-                        "name": "url",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Method",
-                        "name": "method",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
+                        "description": "Login Credentials",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/apis.ApiStoreRequestJson"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Webhook added successfully",
+                        "description": "User stored!\" \"Successfully stored",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "string"
                         }
                     },
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
-                        "description": "Invalid or missing Bearer token",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/{platform}/devices": {
-            "post": {
-                "description": "Registers a new device connection for the specified platform and establishes a websocket connection.\nThe websocket connection will:\n- Receive media/images from the platform bridge\n- Handle login synchronization events\n- Send existing active sessions if available\n- Close connection when receiving nil data (indicating end of session or error)\nHere are various platforms supported:\n'wa' (for WhatsApp)\n'signal' (for Signal)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Adds a device for a given platform",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Platform Name",
-                        "name": "platform",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Device Payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.ClientBridgeJsonRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully added device and established websocket connection",
-                        "schema": {
-                            "$ref": "#/definitions/main.DeviceResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid or missing Bearer token",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/{platform}/list/devices": {
-            "post": {
-                "description": "Retrieves all active devices for the specified platform and user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Lists devices for a given platform",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Platform Name",
-                        "name": "platform",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Device List Request",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.ClientBridgeJsonRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "List of devices",
+                        "description": "Login failed",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid or missing Bearer token",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/{platform}/message/{contact}": {
-            "post": {
-                "description": "Sends a message to a contact through the specified platform bridge. The message can include text and optional file data.\nThe function validates and sanitizes all input fields according to the following rules:\n- Username: 3-32 characters, letters, numbers, and underscores only\n- Message: 1-4096 characters, cannot be empty\n- Device name: 2-20 characters, letters and numbers only\n- Contact: Valid E.164 phone number format (8-15 digits)\n- Platform: 2-20 characters, letters and numbers only",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Sends a message to a contact through a platform bridge",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Platform Name (2-20 characters, letters and numbers only)",
-                        "name": "platform",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Contact ID (E.164 phone number without the plus sign, 8-15 digits)",
-                        "name": "contact",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Message Payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.ClientMessageJsonRequeset"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Message sent successfully\" example:{\"contact\":\"1234567890\",\"message\":\"Hello, world!\",\"status\":\"sent\"}",
-                        "schema": {
                             "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request - validation errors for username, message, device_name, platform, or contact",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid or missing Bearer token",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to send message or internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -387,8 +365,40 @@
         }
     },
     "definitions": {
-        "main.ClientBridgeJsonRequest": {
-            "description": "Request payload to bind a platform bridge to a user",
+        "apis.ApiStoreRequestJson": {
+            "description": "Request payload for storing user data for syncing",
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "example": ""
+                },
+                "device_id": {
+                    "type": "string",
+                    "example": ""
+                },
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
+        "apis.ClientAddDevices": {
+            "description": "Request payload for user login or registration",
+            "type": "object",
+            "properties": {
+                "platform_name": {
+                    "type": "string",
+                    "example": "john_doe"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
+        "apis.ClientGetDevices": {
+            "description": "Request payload for user login or registration",
             "type": "object",
             "properties": {
                 "username": {
@@ -397,7 +407,7 @@
                 }
             }
         },
-        "main.ClientJsonRequest": {
+        "apis.ClientJsonRequest": {
             "description": "Request payload for user login or registration",
             "type": "object",
             "properties": {
@@ -411,48 +421,58 @@
                 }
             }
         },
-        "main.ClientMessageJsonRequeset": {
-            "type": "object"
-        },
-        "main.DeviceResponse": {
-            "description": "Response payload for successful device addition. The websocket_url is used to establish a connection that: - Receives media/images from the platform bridge - Handles login synchronization events - Receives existing active sessions if available - Closes when receiving nil data (indicating end of session or error)",
+        "apis.ClientRemoveDevices": {
+            "description": "Request payload for user login or registration",
             "type": "object",
             "properties": {
-                "websocket_url": {
+                "device_id": {
                     "type": "string",
-                    "example": "ws://localhost:8080/ws/telegram/john_doe"
-                }
-            }
-        },
-        "main.ErrorResponse": {
-            "description": "Response payload for error cases",
-            "type": "object",
-            "properties": {
-                "details": {
-                    "type": "string",
-                    "example": "Username must be 3-32 characters"
+                    "example": "john_doe"
                 },
-                "error": {
+                "platform_name": {
                     "type": "string",
-                    "example": "Invalid request"
-                }
-            }
-        },
-        "main.LoginResponse": {
-            "description": "Response payload for successful login",
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string",
-                    "example": "syt_YWxwaGE..."
-                },
-                "status": {
-                    "type": "string",
-                    "example": "logged in"
+                    "example": "john_doe"
                 },
                 "username": {
                     "type": "string",
                     "example": "john_doe"
+                }
+            }
+        },
+        "apis.DeviceSendTextMessage": {
+            "description": "Request payload for sending a text message",
+            "type": "object",
+            "properties": {
+                "contact": {
+                    "type": "string",
+                    "example": "john_doe"
+                },
+                "device_id": {
+                    "type": "string",
+                    "example": "john_doe"
+                },
+                "platform_name": {
+                    "type": "string",
+                    "example": "john_doe"
+                },
+                "text": {
+                    "type": "string",
+                    "example": "john_doe"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
+        "devices.Devices": {
+            "type": "object",
+            "properties": {
+                "bridge_name": {
+                    "type": "string"
+                },
+                "device_id": {
+                    "type": "string"
                 }
             }
         }
