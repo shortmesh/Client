@@ -12,7 +12,6 @@ import (
 	"maunium.net/go/mautrix/crypto"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 )
 
 type MatrixClient struct {
@@ -202,22 +201,6 @@ func verifyRecoveryKey(
 	err = machine.SignOwnMasterKey(ctx)
 	if err != nil {
 		panic(err)
-	}
-
-	return nil
-}
-
-func (m *MatrixClient) SendMessage(roomId id.RoomID, message string) error {
-	ctx := context.Background()
-	content := event.MessageEventContent{
-		MsgType: event.MsgText,
-		Body:    message,
-	}
-	_, err := m.Client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
 	}
 
 	return nil

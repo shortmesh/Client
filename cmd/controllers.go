@@ -261,11 +261,11 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	roomId, err := (&rooms.Rooms{
 		Client:   room.Client,
 		IsBridge: true,
-	}).JoinRoom([]id.UserID{
+	}).CreateRoom([]id.UserID{
 		id.UserID(contactUsername),
 		id.UserID(deviceIdUsername),
 		id.UserID(botUsername),
-	})
+	}, false)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -342,7 +342,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		room.ID = roomId
 	}
 
-	err = (&MatrixClient{Client: c.Client}).SendMessage(*room.ID, message)
+	err = room.SendMessage(message)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

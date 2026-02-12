@@ -125,7 +125,7 @@ func (r *Rooms) GetInvites(
 	return nil
 }
 
-func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
+func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomID, error) {
 	resp, err := r.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
 		Invite:   invites,
 		IsDirect: true,
@@ -134,6 +134,8 @@ func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
 		Visibility: "private",
 	})
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return "", err
 	}
 
@@ -149,9 +151,10 @@ func (r *Rooms) JoinRoom(invites []id.UserID) (id.RoomID, error) {
 	)
 
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return "", err
 	}
-
 	r.ID = &resp.RoomID
 	return resp.RoomID, nil
 }
@@ -394,6 +397,22 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 				debug.PrintStack()
 			}
 		}
+	}
+
+	return nil
+}
+
+func (r *Rooms) SendMessage(message string) error {
+	ctx := context.Background()
+	content := event.MessageEventContent{
+		MsgType: event.MsgText,
+		Body:    message,
+	}
+	_, err := r.Client.SendMessageEvent(ctx, *r.ID, event.EventMessage, content)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
 
 	return nil

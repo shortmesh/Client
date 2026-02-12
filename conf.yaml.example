@@ -17,6 +17,7 @@ bridges:
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
+      management: "set-management-room"
       failed: "Login failed: Entering code or scanning QR timed out. Please try again."
       success: "Successfully logged in as %s"
       ongoing: "Scan the QR code with the WhatsApp mobile app to log in"

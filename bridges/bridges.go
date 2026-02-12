@@ -317,13 +317,37 @@ func (b *Bridges) AddDevice() error {
 }
 
 func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
-	roomId, err := (&rooms.Rooms{
+	_roomId, err := (&rooms.Rooms{
 		Client:   b.Client,
 		IsBridge: true,
-	}).JoinRoom([]id.UserID{
+	}).CreateRoom([]id.UserID{
 		id.UserID(b.BridgeConfig.BotName),
-	})
+	}, true)
 	if err != nil {
+		return "", err
+	}
+
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	bridgeConf, found := conf.GetBridgeConfig(b.BridgeConfig.Name)
+	if !found {
+		slog.Error("Bridge not found", "name", b.BridgeConfig.Name)
+		return "", err
+	}
+
+	roomId := id.RoomID(_roomId)
+	err = (&rooms.Rooms{
+		Client: b.Client,
+		ID:     &roomId,
+	}).SendMessage(bridgeConf.Cmd["management"])
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return "", err
 	}
 

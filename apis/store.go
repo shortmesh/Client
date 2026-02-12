@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
@@ -79,6 +80,14 @@ func Store(c *gin.Context) {
 		slog.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 		return
+	}
+
+	for _, bridgeConf := range conf.Bridges {
+		slog.Debug("Creating bridge room", "bridge_name", bridgeConf.Name)
+		(&bridges.Bridges{
+			BridgeConfig: bridgeConf,
+			Client:       client,
+		}).JoinManagementRooms()
 	}
 
 	c.JSON(http.StatusOK, "User stored!")
