@@ -66,35 +66,11 @@ func Store(c *gin.Context) {
 	client.DeviceID = id.DeviceID(apiStoreRequestJson.DeviceId)
 
 	pickleKey, err := utils.GenerateRandomBytes(32)
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
-	// 	return
-	// }
-
-	// err = (&users.Users{
-	// 	Client:      client,
-	// 	RecoveryKey: "",
-	// 	PickleKey:   pickleKey,
-	// }).Save()
-
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
-	// 	return
-	// }
-
-	// err = utils.DeleteFilesWithPattern("./db", fmt.Sprintf("%s-crypto.*", client.UserID.Localpart()))
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	debug.PrintStack()
-	// 	return
-	// }
-
 	cryptoHelper, err := cmd.SetupCryptoHelper(client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -102,6 +78,7 @@ func Store(c *gin.Context) {
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -112,6 +89,8 @@ func Store(c *gin.Context) {
 	}).Save()
 	if err != nil {
 		slog.Error(err.Error())
+		debug.PrintStack()
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
