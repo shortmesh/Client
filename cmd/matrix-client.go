@@ -55,7 +55,7 @@ func Logout(client *mautrix.Client) error {
 	return err
 }
 
-func setupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
+func SetupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.CryptoHelper, error) {
 	dbPath := fmt.Sprintf("db/%s-crypto.db", client.UserID.Localpart()) // this path needs to change for each user
 
 	helper, err := cryptohelper.NewCryptoHelper(client, pickleKey, dbPath)
@@ -108,7 +108,7 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	return nil
 }
 
-func generateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
+func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
 	ctx := context.Background()
 	machine := cryptoHelper.Machine()
 

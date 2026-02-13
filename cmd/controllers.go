@@ -58,14 +58,14 @@ func (c *Controller) Login(password string) (string, error) {
 		return "", err
 	}
 
-	cryptoHelper, err := setupCryptoHelper(c.Client, pickleKey)
+	cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return "", err
 	}
 
-	recoveryKey, err := generateAndUploadClientKeys(cryptoHelper)
+	recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -121,7 +121,7 @@ func Sync(user users.Users) error {
 		return err
 	}
 
-	cryptoHelper, err := setupCryptoHelper(user.Client, []byte(user.PickleKey))
+	cryptoHelper, err := SetupCryptoHelper(user.Client, []byte(user.PickleKey))
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

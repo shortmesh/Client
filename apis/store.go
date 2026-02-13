@@ -3,9 +3,11 @@ package apis
 import (
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/bridges"
+	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
@@ -64,21 +66,52 @@ func Store(c *gin.Context) {
 	client.DeviceID = id.DeviceID(apiStoreRequestJson.DeviceId)
 
 	pickleKey, err := utils.GenerateRandomBytes(32)
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+	// 	return
+	// }
+
+	// err = (&users.Users{
+	// 	Client:      client,
+	// 	RecoveryKey: "",
+	// 	PickleKey:   pickleKey,
+	// }).Save()
+
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+	// 	return
+	// }
+
+	// err = utils.DeleteFilesWithPattern("./db", fmt.Sprintf("%s-crypto.*", client.UserID.Localpart()))
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	debug.PrintStack()
+	// 	return
+	// }
+
+	cryptoHelper, err := cmd.SetupCryptoHelper(client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
+		debug.PrintStack()
+		return
+	}
+
+	recoveryKey, err := cmd.GenerateAndUploadClientKeys(cryptoHelper)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return
 	}
 
 	err = (&users.Users{
 		Client:      client,
-		RecoveryKey: "",
+		RecoveryKey: recoveryKey,
 		PickleKey:   pickleKey,
 	}).Save()
-
 	if err != nil {
 		slog.Error(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 		return
 	}
 
