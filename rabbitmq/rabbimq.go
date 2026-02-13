@@ -37,18 +37,50 @@ func getConnection() (*amqp.Connection, error) {
 	return conn, nil
 }
 
-func start(client *mautrix.Client, exchange string) (*amqp.Connection, *amqp.Channel, *amqp.Queue, error) {
+func DeleteQueue(client *mautrix.Client, queueName string) error {
+	conn, err := getConnection()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	ch, err := conn.Channel()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	_, err = ch.QueueDelete(
+		queueName,
+		false, // ifUnused
+		false, // ifEmpty
+		false, // noWait
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
+func start(
+	client *mautrix.Client,
+	exchange,
+	bindingKey string,
+) (*amqp.Connection, *amqp.Channel, error) {
 	slog.Debug("RabbitMQ starting", "username", client.UserID.String())
 	conn, err := getConnection()
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	err = ch.ExchangeDeclare(
@@ -63,7 +95,7 @@ func start(client *mautrix.Client, exchange string) (*amqp.Connection, *amqp.Cha
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	q, err := ch.QueueDeclare(
@@ -77,8 +109,21 @@ func start(client *mautrix.Client, exchange string) (*amqp.Connection, *amqp.Cha
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	return conn, ch, &q, nil
+	err = ch.QueueBind(
+		q.Name,     // queue name
+		bindingKey, // routing key
+		exchange,   // exchange name
+		false,      // no-wait
+		nil,        // arguments
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, nil, err
+	}
+
+	return conn, ch, nil
 }

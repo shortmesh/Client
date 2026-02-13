@@ -10,8 +10,8 @@ import (
 	"maunium.net/go/mautrix"
 )
 
-func Sender(client *mautrix.Client, message string, exchange string) error {
-	conn, ch, q, err := start(client, exchange)
+func Sender(client *mautrix.Client, message string, exchange, routingKey string) error {
+	conn, ch, err := start(client, exchange, routingKey)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
@@ -23,10 +23,10 @@ func Sender(client *mautrix.Client, message string, exchange string) error {
 	defer cancel()
 
 	err = ch.PublishWithContext(ctx,
-		exchange, // exchange
-		q.Name,   // routing key
-		false,    // mandatory
-		false,    // immediate
+		exchange,   // exchange
+		routingKey, // routing key
+		false,      // mandatory
+		false,      // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte(message), // TODO: set TTL

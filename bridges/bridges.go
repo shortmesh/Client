@@ -29,7 +29,11 @@ type Bridges struct {
 }
 
 type RMQExchanges struct {
-	AddNewDevice string `default:"bridges.add_new_device"`
+	AddNewDevice string `default:"bridges.topic"`
+}
+
+type RMQBindingKeys struct {
+	AddNewDevice string `default:"bridges.topic.add_new_device"`
 }
 
 func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, error) {
@@ -150,13 +154,22 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 }
 
 func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
+	exchange := RMQExchanges{}
+	defaults.Set(&exchange)
+
+	bindingKey := RMQBindingKeys{}
+	defaults.Set(&bindingKey)
+
 	if evt.Content.AsMessage().FileName != "" &&
 		evt.Content.AsMessage().FileName == b.BridgeConfig.Cmd["login-qr-filename"] {
 		slog.Debug("Login QR found", "bridge", b.BridgeConfig.Name)
 
-		exchange := RMQExchanges{}
-		defaults.Set(&exchange)
-		err := rabbitmq.Sender(b.Client, evt.Content.AsMessage().Body, exchange.AddNewDevice)
+		err := rabbitmq.Sender(
+			b.Client,
+			evt.Content.AsMessage().Body,
+			exchange.AddNewDevice,
+			bindingKey.AddNewDevice,
+		)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -175,9 +188,13 @@ func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
 
 	if matched {
 		slog.Debug("Failed Login QR found", "bridge", b.BridgeConfig.Name)
-		exchange := RMQExchanges{}
-		defaults.Set(&exchange)
-		rabbitmq.Sender(b.Client, "", exchange.AddNewDevice) // TODO: what format to stop the sync
+		err = rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart())
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return false, err
+		}
+		slog.Debug("Queue deleted", "queueName", b.Client.UserID)
 	}
 
 	return matched, nil
