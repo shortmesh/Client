@@ -150,48 +150,13 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 }
 
 func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
-	/**
-	{
-	  "content": {
-	    "body": "2@s3PQd0nohzyzz6Aa82oaPllf+Ie/RzEhzPKtgNuBkp9az0GUxdizol82GR1BgKM9hyH8tHVfxZAgMVXe/QpcGAe521ri8Sr2DIk=,vXEhg51pyhrFTbJ/XjldOYh+ulIH1vsx6I8Dmd98gx4=,K5SRF0wTUDkir3ucdQood6iMroeDe6p0jKuRIgJP2mQ=,JYEU+puF1XG0XSi/gP0ExoRRuqrZZlYbVDcriyLIjy0=",
-	    "file": {
-	      "hashes": {
-	        "sha256": "VwW8O49cy0hneqnHLAN/Yh4Mq2eqDxq2QmY+BISMHVk"
-	      },
-	      "iv": "4YlcjKJeGrEAAAAAAAAAAA",
-	      "key": {
-	        "alg": "A256CTR",
-	        "ext": true,
-	        "k": "aSKYKJnU_OM5ApJWyi_sH0UReX1N1zoxCIMU3dtykAY",
-	        "key_ops": [
-	          "encrypt",
-	          "decrypt"
-	        ],
-	        "kty": "oct"
-	      },
-	      "url": "mxc://matrix.sherlockwisdom.com/UVyDmXJIUZtaoDyFADUrwFNJ",
-	      "v": "v2"
-	    },
-	    "filename": "qr.png",
-	    "format": "org.matrix.custom.html",
-	    "formatted_body": "<pre><code>2@s3PQd0nohzyzz6Aa82oaPllf+Ie/RzEhzPKtgNuBkp9az0GUxdizol82GR1BgKM9hyH8tHVfxZAgMVXe/QpcGAe521ri8Sr2DIk=,vXEhg51pyhrFTbJ/XjldOYh+ulIH1vsx6I8Dmd98gx4=,K5SRF0wTUDkir3ucdQood6iMroeDe6p0jKuRIgJP2mQ=,JYEU+puF1XG0XSi/gP0ExoRRuqrZZlYbVDcriyLIjy0=</code></pre>",
-	    "msgtype": "m.image"
-	  },
-	  "event_id": "$AMTJIYtgBoKPDpswjPyQ42w14eiDyF0zezbZVV7bV48",
-	  "origin_server_ts": 1770982439617,
-	  "room_id": "!ZxinLcAhmuYqcuozoi:matrix.sherlockwisdom.com",
-	  "sender": "@whatsappbot:matrix.sherlockwisdom.com",
-	  "type": "m.room.message",
-	  "unsigned": {}
-	}
-	**/
 	if evt.Content.AsMessage().FileName != "" &&
 		evt.Content.AsMessage().FileName == b.BridgeConfig.Cmd["login-qr-filename"] {
 		slog.Debug("Login QR found", "bridge", b.BridgeConfig.Name)
 
 		exchange := RMQExchanges{}
 		defaults.Set(&exchange)
-		err := rabbitmq.Sender(b.Client, "", exchange.AddNewDevice)
+		err := rabbitmq.Sender(b.Client, evt.Content.AsMessage().Body, exchange.AddNewDevice)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -209,9 +174,10 @@ func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
 	}
 
 	if matched {
+		slog.Debug("Failed Login QR found", "bridge", b.BridgeConfig.Name)
 		exchange := RMQExchanges{}
 		defaults.Set(&exchange)
-		rabbitmq.Sender(b.Client, "", exchange.AddNewDevice)
+		rabbitmq.Sender(b.Client, "", exchange.AddNewDevice) // TODO: what format to stop the sync
 	}
 
 	return matched, nil
