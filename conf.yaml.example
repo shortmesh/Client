@@ -21,9 +21,10 @@ bridges:
       devices: "list-logins"
       logout: "logout %s"
       management: "!wa set-management-room"
-      failed: "Login failed: Entering code or scanning QR timed out. Please try again."
       success: "Successfully logged in as %s"
-      ongoing: "Scan the QR code with the WhatsApp mobile app to log in"
+      login-qr: "Scan the QR code with the WhatsApp mobile app to log in"
+      login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
+      login-qr-filename: "qr.png"
       cancel: "cancel"
 
   # - signal:

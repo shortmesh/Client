@@ -70,7 +70,7 @@ func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
 	return "", sql.ErrNoRows
 }
 
-func (r *RoomsDB) FetchRoomByName(name string) (*[]string, error) {
+func (r *RoomsDB) FetchRoomByName(name string, isBridgeBot bool) (*[]string, error) {
 	stmt, err := r.connection.Prepare(
 		"select room_id from rooms where bridge_name = ? AND is_bridge_bot = ?",
 	)
@@ -80,7 +80,7 @@ func (r *RoomsDB) FetchRoomByName(name string) (*[]string, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(name, true)
+	rows, err := stmt.Query(name, isBridgeBot)
 	if err != nil {
 		return nil, err
 	}

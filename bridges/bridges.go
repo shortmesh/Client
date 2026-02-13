@@ -10,8 +10,10 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
+	"github.com/shortmesh/core/rabbitmq"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
@@ -24,6 +26,10 @@ type Bridges struct {
 	BridgeConfig configs.BridgeConfig
 	RoomID       *id.RoomID
 	Client       *mautrix.Client
+}
+
+type RMQExchanges struct {
+	AddNewDevice string `default:"bridges.add_new_device"`
 }
 
 func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, error) {
@@ -143,12 +149,80 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 	return false, nil
 }
 
+func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
+	/**
+	{
+	  "content": {
+	    "body": "2@s3PQd0nohzyzz6Aa82oaPllf+Ie/RzEhzPKtgNuBkp9az0GUxdizol82GR1BgKM9hyH8tHVfxZAgMVXe/QpcGAe521ri8Sr2DIk=,vXEhg51pyhrFTbJ/XjldOYh+ulIH1vsx6I8Dmd98gx4=,K5SRF0wTUDkir3ucdQood6iMroeDe6p0jKuRIgJP2mQ=,JYEU+puF1XG0XSi/gP0ExoRRuqrZZlYbVDcriyLIjy0=",
+	    "file": {
+	      "hashes": {
+	        "sha256": "VwW8O49cy0hneqnHLAN/Yh4Mq2eqDxq2QmY+BISMHVk"
+	      },
+	      "iv": "4YlcjKJeGrEAAAAAAAAAAA",
+	      "key": {
+	        "alg": "A256CTR",
+	        "ext": true,
+	        "k": "aSKYKJnU_OM5ApJWyi_sH0UReX1N1zoxCIMU3dtykAY",
+	        "key_ops": [
+	          "encrypt",
+	          "decrypt"
+	        ],
+	        "kty": "oct"
+	      },
+	      "url": "mxc://matrix.sherlockwisdom.com/UVyDmXJIUZtaoDyFADUrwFNJ",
+	      "v": "v2"
+	    },
+	    "filename": "qr.png",
+	    "format": "org.matrix.custom.html",
+	    "formatted_body": "<pre><code>2@s3PQd0nohzyzz6Aa82oaPllf+Ie/RzEhzPKtgNuBkp9az0GUxdizol82GR1BgKM9hyH8tHVfxZAgMVXe/QpcGAe521ri8Sr2DIk=,vXEhg51pyhrFTbJ/XjldOYh+ulIH1vsx6I8Dmd98gx4=,K5SRF0wTUDkir3ucdQood6iMroeDe6p0jKuRIgJP2mQ=,JYEU+puF1XG0XSi/gP0ExoRRuqrZZlYbVDcriyLIjy0=</code></pre>",
+	    "msgtype": "m.image"
+	  },
+	  "event_id": "$AMTJIYtgBoKPDpswjPyQ42w14eiDyF0zezbZVV7bV48",
+	  "origin_server_ts": 1770982439617,
+	  "room_id": "!ZxinLcAhmuYqcuozoi:matrix.sherlockwisdom.com",
+	  "sender": "@whatsappbot:matrix.sherlockwisdom.com",
+	  "type": "m.room.message",
+	  "unsigned": {}
+	}
+	**/
+	if evt.Content.AsMessage().FileName != "" &&
+		evt.Content.AsMessage().FileName == b.BridgeConfig.Cmd["login-qr-filename"] {
+		slog.Debug("Login QR found", "bridge", b.BridgeConfig.Name)
+
+		exchange := RMQExchanges{}
+		defaults.Set(&exchange)
+		err := rabbitmq.Sender(b.Client, "", exchange.AddNewDevice)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return false, err
+		}
+		return true, nil
+	}
+
+	regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["login-qr-failed"], "%s", ".*")
+	matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	if matched {
+		exchange := RMQExchanges{}
+		defaults.Set(&exchange)
+		rabbitmq.Sender(b.Client, "", exchange.AddNewDevice)
+	}
+
+	return matched, nil
+}
+
 /*
 - BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
 when list-devices is ran to delete devices which are deactivated
 */
-func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, message string) (*Bridges, error) {
-	bridge, err := reverseForBridgeBot(client, roomdId)
+func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *event.Event) (*Bridges, error) {
+	bridge, err := reverseForBridgeBot(client, roomId)
 	if bridge == nil {
 		return nil, nil
 	}
@@ -158,33 +232,57 @@ func processIncomingBotMessage(client *mautrix.Client, roomdId id.RoomID, messag
 		debug.PrintStack()
 		return nil, err
 	}
-	slog.Debug("processing incoming for bridge", "name", bridge.BridgeConfig.Name, "message", message)
 
-	isLoginMatched, err := bridge.checkIfLoginMessage(message)
+	isManagementRoom, err := rooms.IsManagementRoom(client, roomId, bridge.BridgeConfig.BotName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	if isLoginMatched {
-		return nil, err
-	}
+	if isManagementRoom {
+		message := evt.Content.AsMessage().Body
+		slog.Debug(
+			"Management room",
+			"roomId", roomId.String(),
+			"bridge", bridge.BridgeConfig.Name,
+			"message", message,
+		)
+		isLoginMatched, err := bridge.checkIfLoginMessage(message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
 
-	isSuccessMatched, err := bridge.checkIfSuccess(message)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-	if isSuccessMatched {
-		return nil, err
+		if isLoginMatched {
+			return nil, err
+		}
+
+		isSuccessMatched, err := bridge.checkIfSuccess(message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		if isSuccessMatched {
+			return nil, err
+		}
+
+		isAddNewDeviceMatched, err := bridge.checkIfMatchDevice(evt)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		if isAddNewDeviceMatched {
+			return nil, err
+		}
 	}
 
 	// TODO: insert other possiblities
 
 	return bridge, nil
-
 }
 
 func (b *Bridges) processIncomingMessages(evt *event.Event) error {
@@ -196,11 +294,7 @@ func (b *Bridges) processIncomingMessages(evt *event.Event) error {
 	}
 
 	if userType == users.BridgeBot {
-		_, err := processIncomingBotMessage(
-			b.Client,
-			evt.RoomID,
-			evt.Content.AsMessage().Body,
-		)
+		_, err := processIncomingBotMessage(b.Client, evt.RoomID, evt)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -222,7 +316,7 @@ func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
 		return nil, err
 	}
 
-	bridgeRoomIds, err := roomsDb.FetchRoomByName(name)
+	bridgeRoomIds, err := roomsDb.FetchRoomByName(name, true)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +379,7 @@ func (b *Bridges) LookupBridgeByRoomId(roomId string) (*Bridges, error) {
 }
 
 func (b *Bridges) queryCommand(query string) error {
-	log.Printf("[+] %sBridge| Sending message %s to %v\n", b.BridgeConfig.Name, query, b.RoomID)
+	slog.Debug("Bridge query", "name", b.BridgeConfig.Name, "query", query, "roomId", b.RoomID)
 	_, err := b.Client.SendText(
 		context.Background(),
 		*b.RoomID,
@@ -293,7 +387,8 @@ func (b *Bridges) queryCommand(query string) error {
 	)
 
 	if err != nil {
-		log.Println("Error sending message:", err)
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return err
 	}
 	return nil
@@ -302,6 +397,8 @@ func (b *Bridges) queryCommand(query string) error {
 func (b *Bridges) RemoveDevice(deviceId string) error {
 	cmd := fmt.Sprintf("%s %s", b.BridgeConfig.Cmd["logout"], deviceId)
 	if err := b.queryCommand(cmd); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return err
 	}
 
@@ -310,6 +407,8 @@ func (b *Bridges) RemoveDevice(deviceId string) error {
 
 func (b *Bridges) AddDevice() error {
 	if err := b.queryCommand(b.BridgeConfig.Cmd["login"]); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return err
 	}
 
@@ -324,6 +423,8 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 		id.UserID(b.BridgeConfig.BotName),
 	}, true)
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return "", err
 	}
 

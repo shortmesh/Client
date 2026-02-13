@@ -37,7 +37,7 @@ func getConnection() (*amqp.Connection, error) {
 	return conn, nil
 }
 
-func start(client *mautrix.Client) (*amqp.Connection, *amqp.Channel, *amqp.Queue, error) {
+func start(client *mautrix.Client, exchange string) (*amqp.Connection, *amqp.Channel, *amqp.Queue, error) {
 	slog.Debug("RabbitMQ starting", "username", client.UserID.String())
 	conn, err := getConnection()
 	if err != nil {
@@ -52,8 +52,8 @@ func start(client *mautrix.Client) (*amqp.Connection, *amqp.Channel, *amqp.Queue
 	}
 
 	err = ch.ExchangeDeclare(
-		"logs",   // name
-		"fanout", // type
+		exchange, // name
+		"topic",  // type
 		true,     // durable
 		false,    // auto-deleted
 		false,    // internal

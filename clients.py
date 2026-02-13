@@ -48,6 +48,20 @@ def list_devices(username):
     if response.status_code == 200:
         print(json.dumps(response.json(), indent=4))
 
+def add_device(username, platform_name):
+    url = "http://localhost:8080/api/v1/devices"
+    payload = {
+        "username" : username,
+        "platform_name" : platform_name,
+    }
+    response = requests.post(url, json=payload)
+
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        print("User created successfully...")
+        print(json.dumps(response.json(), indent=4))
+
 def login(username, password):
     url = "http://localhost:8080/api/v1/login"
     payload = {
@@ -65,10 +79,9 @@ def login(username, password):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: clients.py --[login|list-devices] [username password|username]")
+        print("Usage: clients.py --[login|list-devices|add-device|store|send-message]")
         exit()
     
-
     if sys.argv[1] == "--login":
         username = sys.argv[2]
         password = sys.argv[3]
@@ -81,6 +94,14 @@ if __name__ == "__main__":
         username = sys.argv[2]
         try:
             list_devices(username)
+        except Exception as error:
+            print(error)
+
+    elif sys.argv[1] == "--add-device":
+        username = sys.argv[2]
+        platformName = sys.argv[3]
+        try:
+            add_device(username, platformName)
         except Exception as error:
             print(error)
 

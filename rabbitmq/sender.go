@@ -11,7 +11,7 @@ import (
 )
 
 func Sender(client *mautrix.Client, message string, exchange string) error {
-	conn, ch, q, err := start(client)
+	conn, ch, q, err := start(client, exchange)
 	if err != nil {
 		slog.Error(err.Error())
 		return err

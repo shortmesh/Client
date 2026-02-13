@@ -35,13 +35,13 @@ func (r *Rooms) GetRoomMembers() ([]id.UserID, error) {
 	return membersList, nil
 }
 
-func (r *Rooms) IsManagementRoom(botName string) (bool, error) {
-	members, err := r.Client.JoinedMembers(context.Background(), *r.ID)
+func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botName string) (bool, error) {
+	members, err := client.JoinedMembers(context.Background(), roomId)
 	if err != nil {
 		return false, err
 	}
 
-	isSpace, err := r.IsSpaceRoom()
+	isSpace, err := isSpaceRoom(client, roomId)
 	if err != nil {
 		return false, err
 	}
@@ -50,13 +50,31 @@ func (r *Rooms) IsManagementRoom(botName string) (bool, error) {
 		if len(members.Joined) == 2 {
 			botID := id.UserID(botName)
 			if _, ok := members.Joined[botID]; ok {
-				if _, ok := members.Joined[r.Client.UserID]; ok {
+				if _, ok := members.Joined[client.UserID]; ok {
 					return true, nil
 				}
 			}
 		}
 	}
 
+	return false, nil
+}
+
+// IsSpaceRoom checks if the given room is a space
+func isSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
+	var createContent event.CreateEventContent
+
+	err := client.StateEvent(context.Background(), roomId, event.StateCreate, "", &createContent)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	// Check if "type" field is set to "m.space"
+	if createContent.Type == "m.space" {
+		return true, nil
+	}
 	return false, nil
 }
 
@@ -87,22 +105,6 @@ func (r *Rooms) GetPowerLevelsEvents() (int, error) {
 		return -1, err
 	}
 	return powerLevels.Events[event.EventMessage.String()], nil
-}
-
-// IsSpaceRoom checks if the given room is a space
-func (r *Rooms) IsSpaceRoom() (bool, error) {
-	var createContent event.CreateEventContent
-
-	err := r.Client.StateEvent(context.Background(), *r.ID, event.StateCreate, "", &createContent)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if "type" field is set to "m.space"
-	if createContent.Type == "m.space" {
-		return true, nil
-	}
-	return false, nil
 }
 
 func (r *Rooms) GetInvites(
