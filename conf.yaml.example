@@ -1,9 +1,12 @@
 api_version: 1
 homeserver: ""
 homeserver_domain: ""
-server:
-  port: 8080
+rabbitmq:
+  username: "guest"
+  password: "guest"
+  port: 5672
   host: "0.0.0.0"
+  is_tls: false
   tls:
     crt: ""
     key: ""

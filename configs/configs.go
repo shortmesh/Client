@@ -17,6 +17,15 @@ type Tls struct {
 	Key string `yaml:"key"`
 }
 
+type RabbitMQ struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Port     int    `yaml:"port"`
+	Host     string `yaml:"host"`
+	IsTLs    bool   `yaml:"is_tls"`
+	Tls      Tls    `yaml:"tls"`
+}
+
 type Server struct {
 	Port string `yaml:"port"`
 	Host string `yaml:"host"`
@@ -38,6 +47,7 @@ type Conf struct {
 	HomeServer       string         `yaml:"homeserver"`
 	HomeServerDomain string         `yaml:"homeserver_domain"`
 	Bridges          []BridgeConfig `yaml:"bridges"`
+	RabbitMQ         RabbitMQ       `yaml:"rabbitmq"`
 }
 
 func GetConf() (*Conf, error) {

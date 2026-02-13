@@ -13,7 +13,6 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/docs"
 	_ "github.com/shortmesh/core/docs"
-	"github.com/shortmesh/core/rabbitmq"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	// "maunium.net/go/mautrix/id"
@@ -31,7 +30,7 @@ func main() {
 
 	go cmd.SyncUsers()
 	go RestAPIRoutines()
-	go rabbitmq.RabbitMQReceiver()
+	// go rabbitmq.RabbitMQReceiver()
 
 	select {}
 }
