@@ -42,7 +42,7 @@ func (c *Controller) Store() error {
 
 	if user.Client == nil { // changing access token
 		pickleKey, err := utils.GenerateRandomBytes(32)
-		cryptoHelper, err := SetupCryptoHelper(user.Client, pickleKey)
+		cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
 		if err != nil {
 			return err
 		}
@@ -53,6 +53,7 @@ func (c *Controller) Store() error {
 		}
 		user.RecoveryKey = recoveryKey
 		user.PickleKey = pickleKey
+		user.Client = c.Client
 	}
 
 	err = user.Save()
