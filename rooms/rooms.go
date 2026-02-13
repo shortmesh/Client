@@ -141,10 +141,11 @@ func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomI
 		return "", err
 	}
 
+	roomId := resp.RoomID
 	// * Begins encryption
 	_, err = r.Client.SendStateEvent(
 		context.Background(),
-		resp.RoomID,
+		roomId,
 		event.StateEncryption,
 		"",
 		&event.EncryptionEventContent{
@@ -157,6 +158,7 @@ func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomI
 		debug.PrintStack()
 		return "", err
 	}
+
 	r.ID = &resp.RoomID
 	return resp.RoomID, nil
 }
@@ -300,7 +302,7 @@ func processIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserI
 		return err
 	}
 
-	slog.Debug("Room parsed and saved user room", "BridgeName", bridgeName, "ContactName", contactName, "deviceName", deviceName)
+	slog.Debug("Room saved", "bridge_name", bridgeName, "contact_name", contactName, "device_name", deviceName)
 	return nil
 
 }
@@ -384,21 +386,24 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 				slog.Error(err.Error())
 				debug.PrintStack()
 			}
+			return nil
 		}
 
-		isBridgeBotRoom, err := isBridgeBotRoom(client, members)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
+		// * For now focus on creating contact rooms
+		// isBridgeBotRoom, err := isBridgeBotRoom(client, members)
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// 	debug.PrintStack()
+		// }
 
-		if isBridgeBotRoom {
-			err := processIsBotRoom(client, room, members)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-			}
-		}
+		// if isBridgeBotRoom {
+		// 	err := processIsBotRoom(client, room, members)
+		// 	if err != nil {
+		// 		slog.Error(err.Error())
+		// 		debug.PrintStack()
+		// 	}
+		// 	return nil
+		// }
 	}
 
 	return nil

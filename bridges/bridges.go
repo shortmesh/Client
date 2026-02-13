@@ -456,6 +456,21 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 	return roomId, nil
 }
 
+func (b *Bridges) Clear() error {
+	roomsDb, err := rooms.GetRoomDb(b.Client)
+	if err != nil {
+		log.Println("Error initializing client db:", err)
+		return err
+	}
+
+	// TODO: put device id and other params here
+	if err := roomsDb.Clear(b.BridgeConfig.Name, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (b *Bridges) Save() error {
 	roomsDb, err := rooms.GetRoomDb(b.Client)
 	if err != nil {

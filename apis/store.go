@@ -3,13 +3,10 @@ package apis
 import (
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
@@ -63,44 +60,14 @@ func Store(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	client.DeviceID = id.DeviceID(apiStoreRequestJson.DeviceId)
 
-	pickleKey, err := utils.GenerateRandomBytes(32)
-	cryptoHelper, err := cmd.SetupCryptoHelper(client, pickleKey)
+	err = (&cmd.Controller{Client: client}).Store()
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	recoveryKey, err := cmd.GenerateAndUploadClientKeys(cryptoHelper)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err = (&users.Users{
-		Client:      client,
-		RecoveryKey: recoveryKey,
-		PickleKey:   pickleKey,
-	}).Save()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	for _, bridgeConf := range conf.Bridges {
-		slog.Debug("Creating bridge room", "bridge_name", bridgeConf.Name)
-		(&bridges.Bridges{
-			BridgeConfig: bridgeConf,
-			Client:       client,
-		}).JoinManagementRooms()
-	}
-
-	c.JSON(http.StatusOK, "User stored!")
+	c.JSON(http.StatusOK, gin.H{"status": "User created!"})
 }

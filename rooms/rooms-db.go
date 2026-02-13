@@ -2,6 +2,8 @@ package rooms
 
 import (
 	"database/sql"
+	"log/slog"
+	"runtime/debug"
 )
 
 type RoomsDB struct {
@@ -104,6 +106,40 @@ func (r *RoomsDB) FetchRoomByName(name string, isBridgeBot bool) (*[]string, err
 	}
 
 	return &roomIds, nil
+}
+
+func (r *RoomsDB) Clear(bridgeName string, isBridgeBot bool) error {
+	tx, err := r.connection.Begin()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`DELETE FROM rooms WHERE bridge_name = ? AND is_bridge_bot = ?`)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(bridgeName, isBridgeBot)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
 }
 
 func (r *RoomsDB) Save(

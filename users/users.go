@@ -213,6 +213,10 @@ func FetchUser(client *mautrix.Client) (*Users, error) {
 
 	_, accessToken, deviceId, pickleKey, err := userDb.FetchUser(client.UserID.String())
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return &Users{}, nil
+		}
+
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err

@@ -6,7 +6,6 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"runtime/debug"
 	"sync"
@@ -33,6 +32,40 @@ func (c *Controller) GetDevices() ([]devices.Devices, error) {
 		return nil, err
 	}
 	return devices, nil
+}
+
+func (c *Controller) Store() error {
+	user, err := users.FetchUser(c.Client)
+	if err != nil {
+		return err
+	}
+
+	if user.Client == nil { // changing access token
+		pickleKey, err := utils.GenerateRandomBytes(32)
+		cryptoHelper, err := SetupCryptoHelper(user.Client, pickleKey)
+		if err != nil {
+			return err
+		}
+
+		recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
+		if err != nil {
+			return err
+		}
+		user.RecoveryKey = recoveryKey
+		user.PickleKey = pickleKey
+	}
+
+	err = user.Save()
+	if err != nil {
+		return err
+	}
+
+	err = c.AddBridges()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // !This should be used if account reset is on the table
@@ -191,15 +224,6 @@ func (c *Controller) AddDevice(bridgeName string) error {
 }
 
 func (c *Controller) AddBridges() error {
-	// ? User authenticates themselves
-	// ? Bridges are added to users account
-	// ?   read configs for bridges
-	// ?   for(bridges):
-	// ?    If bridges not already added --> add them
-	// ?    addbridge():
-	// ?     invite bridge to join the room - multiple rooms get created
-	// ?     add bridge to database
-
 	conf, err := configs.GetConf()
 	if err != nil {
 		return err
@@ -207,10 +231,9 @@ func (c *Controller) AddBridges() error {
 
 	bridgeConfs := conf.Bridges
 
-	for i, confBridge := range bridgeConfs {
-		log.Printf("[+] (%d\\%d) Bridge: %s\n", i+1, len(bridgeConfs), confBridge.Name)
+	for _, confBridge := range bridgeConfs {
+		slog.Debug("Adding bridge", "name", confBridge.Name)
 
-		//TODO: CheckRoomExists(client):
 		bridge := bridges.Bridges{
 			BridgeConfig: confBridge,
 			Client:       c.Client,
@@ -222,12 +245,17 @@ func (c *Controller) AddBridges() error {
 			return err
 		}
 		bridge.RoomID = &roomId
-		if err := bridge.Save(); err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
+
+		if err := bridge.Clear(); err != nil {
 			return err
 		}
-		log.Printf("Room created: %s\n", bridge.RoomID)
+		slog.Debug("Bridge rooms cleared", "name", bridge.BridgeConfig.BotName)
+
+		if err := bridge.Save(); err != nil {
+			return err
+		}
+
+		slog.Debug("Room created", "room_id", bridge.RoomID)
 	}
 
 	return nil
