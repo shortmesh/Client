@@ -1,18 +1,23 @@
-# ShortMesh core
+# ShortMesh Client
 
 ## Contents
-
+- [Description](https://github.com/shortmesh/Core/blob/master/README.md#description)
+- [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
+- [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
+- [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
-
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
-
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
-    
     - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
-    
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
+ 
+## Description
+ShortMesh Client is a Matrix protocol client  that provides messaging capabilities across multiple Matrix bridges. \
+The project is built to work with any Matrix homeserver and any number of Matrix bridges can be configured to work on it.
 
  ## Requirements
+ - A running Matrix homeserver
+ - Bridges configured on homeserver which can be activated in the conf.yaml file
  - golang
  - swagger
 ```bash
@@ -48,7 +53,7 @@ You can configure your API address in conf.yaml. This would be same address you 
 ```bash
 swag init
 ```
-> [host]/api/v1/index.html
+> [host]/docs/index.html
 
 ## Notes
 ### Postgres issues
