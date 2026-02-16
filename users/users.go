@@ -203,6 +203,23 @@ func FetchMessageContact(
 	return roomId, nil
 }
 
+func RemoveUser(client *mautrix.Client) error {
+	clientDb, err := GetClientDB()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = clientDb.DeleteUser(client.UserID.String())
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
 func FetchUser(client *mautrix.Client) (*Users, error) {
 	userDb, err := GetUserDB(client)
 	if err != nil {

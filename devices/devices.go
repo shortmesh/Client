@@ -88,3 +88,20 @@ func (d *Devices) GetDevices() ([]Devices, error) {
 
 	return devices, nil
 }
+
+func (d *Devices) Remove() error {
+	devicesDb, err := GetDeviceDB(d.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = devicesDb.delete(d.DeviceId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}

@@ -384,6 +384,12 @@ func (b *Bridges) RemoveDevice(deviceId string) error {
 		debug.PrintStack()
 		return err
 	}
+	err := (&devices.Devices{Client: b.Client, DeviceId: deviceId}).Remove()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
 
 	return nil
 }

@@ -74,6 +74,7 @@ func RestAPIRoutines() {
 	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
 	router.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
 	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
+	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.RemoveDevices)
 	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
 
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

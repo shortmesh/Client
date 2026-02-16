@@ -2,6 +2,8 @@ package devices
 
 import (
 	"database/sql"
+	"log/slog"
+	"runtime/debug"
 )
 
 type DeviceDB struct {
@@ -128,6 +130,41 @@ func (d *DeviceDB) Save(deviceId, bridgeName string) error {
 
 	err = tx.Commit()
 	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (d *DeviceDB) delete(deviceId string) error {
+	tx, err := d.connection.Begin()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`DELETE FROM devices WHERE device_id = ?`)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(deviceId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return err
 	}
 

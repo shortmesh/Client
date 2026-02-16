@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"runtime/debug"
 
 	"github.com/mattn/go-sqlite3"
 	_ "github.com/mattn/go-sqlite3"
@@ -207,6 +208,41 @@ func (c *ClientDB) Store(username string) error {
 	}
 
 	return nil
+}
+
+func (c *ClientDB) DeleteUser(username string) error {
+	tx, err := c.connection.Begin()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`DELETE FROM clients WHERE username = ?`)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(username)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+
 }
 
 func (c *ClientDB) FetchUsers() ([]string, error) {
