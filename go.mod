@@ -5,6 +5,7 @@ go 1.24.3
 
 require (
 	github.com/creasty/defaults v1.8.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/rabbitmq/amqp091-go v1.10.0

@@ -1,6 +1,9 @@
 api_version: 1
 homeserver: ""
 homeserver_domain: ""
+server:
+  host: "0.0.0.0"
+  port: 8080
 rabbitmq:
   username: "guest"
   password: "guest"

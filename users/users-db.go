@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 
+	"github.com/mattn/go-sqlite3"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -18,6 +19,18 @@ type UserDB struct {
 	connection *sql.DB
 	Username   string
 	Filepath   string
+}
+
+func updateDbCallback(conn *sqlite3.SQLiteConn) error {
+	conn.RegisterUpdateHook(func(
+		op int,
+		dbName, tableName string,
+		rowID int64,
+	) {
+		// Your callback logic here
+		fmt.Printf("Operation %d on table %s, row %d\n", op, tableName, rowID)
+	})
+	return nil
 }
 
 // https://github.com/mattn/go-sqlite3/blob/v1.14.28/_example/simple/simple.go
@@ -68,6 +81,7 @@ func (c *ClientDB) Init() error {
 	if err != nil {
 		return err
 	}
+
 	return err
 }
 

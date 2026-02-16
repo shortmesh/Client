@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
@@ -119,7 +120,63 @@ func (c *Controller) Login(password string) (string, error) {
 	return recoveryKey, nil
 }
 
+type NewSyncUser func(user users.Users) error
+
+// cus why not
+type SyncWatcher struct {
+	Add   *NewSyncUser
+	cache map[string]string
+}
+
+func clientsDbWatcher() error {
+	slog.Debug("Client Watcher", "status", "initialized")
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	defer watcher.Close()
+
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				slog.Debug("Client Watcher", "event", event)
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					slog.Debug("Client Watcher", "modified file:", event.Name)
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				slog.Error(err.Error())
+				debug.PrintStack()
+			}
+		}
+	}()
+
+	// Add a path to watch (e.g., a directory)
+	err = watcher.Add("./db") // Use your desired path
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	// Keep the program running
+	<-done
+	return nil
+}
+
 func SyncUsers() error {
+	go clientsDbWatcher()
+
 	users, err := users.FetchAllUsers()
 	if err != nil {
 		slog.Error(err.Error())
@@ -143,6 +200,8 @@ func SyncUsers() error {
 	}
 	wg.Wait()
 	slog.Debug("Syncing details", "status", "completed and exiting")
+
+	// TODO: create a db change watch function which resyncs once the values have changed
 
 	return nil
 }
