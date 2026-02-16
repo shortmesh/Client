@@ -4,7 +4,6 @@ import (
 	// 	"context"
 	// 	"fmt"
 
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -18,7 +17,6 @@ import (
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -120,14 +118,6 @@ func (c *Controller) Login(password string) (string, error) {
 	return recoveryKey, nil
 }
 
-type NewSyncUser func(user users.Users) error
-
-// cus why not
-type SyncWatcher struct {
-	Add   *NewSyncUser
-	cache map[string]string
-}
-
 func clientsDbWatcher() error {
 	slog.Debug("Client Watcher", "status", "initialized")
 	watcher, err := fsnotify.NewWatcher()
@@ -147,9 +137,13 @@ func clientsDbWatcher() error {
 				if !ok {
 					return
 				}
-				slog.Debug("Client Watcher", "event", event)
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					slog.Debug("Client Watcher", "modified file:", event.Name)
+				if event.Op == fsnotify.Create {
+					slog.Debug("Client Watcher", "created file:", event.Name)
+					go syncAll()
+				}
+				if event.Op == fsnotify.Remove {
+					slog.Debug("Client Watcher", "removed file:", event.Name)
+					go syncAll()
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -174,94 +168,38 @@ func clientsDbWatcher() error {
 	return nil
 }
 
-func SyncUsers() error {
-	go clientsDbWatcher()
-
-	users, err := users.FetchAllUsers()
+func syncAll() error {
+	fetchedUsers, err := users.FetchAllUsers()
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	slog.Debug("Syncing details", "#users", len(users))
-	var wg sync.WaitGroup
+	slog.Debug("Syncing details", "#users", len(fetchedUsers))
 
-	for _, user := range users {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err = Sync(user)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-			}
-		}()
+	for _, user := range fetchedUsers {
+		err := syncWatcher.Add(user)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		}
 	}
-	wg.Wait()
-	slog.Debug("Syncing details", "status", "completed and exiting")
-
-	// TODO: create a db change watch function which resyncs once the values have changed
-
 	return nil
 }
 
-func Sync(user users.Users) error {
-	slog.Debug("Syncing user", "UserID", user.Client.UserID.String(), "DeviceID", user.Client.DeviceID)
-	err := rooms.ParseRoomSubroutine(user.Client)
-	if err != nil {
-		slog.Error(err.Error())
-		return err
+func SyncUsers() error {
+	syncWatcher = SyncWatcher{
+		cache:    make([]id.UserID, 0),
+		wg:       &sync.WaitGroup{},
+		syncUser: Sync,
 	}
 
-	cryptoHelper, err := SetupCryptoHelper(user.Client, []byte(user.PickleKey))
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	mc := MatrixClient{
-		Client:       user.Client,
-		CryptoHelper: cryptoHelper,
-	}
+	syncAll()
+	go clientsDbWatcher()
 
-	mc.Client.Crypto = cryptoHelper
-
-	ch := make(chan *event.Event)
-
-	go func() {
-		for {
-			evt := <-ch
-			if evt == nil {
-				continue
-			}
-
-			json, err := json.MarshalIndent(evt, "", "")
-
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				continue
-			}
-			slog.Debug("Incoming message", "message", json)
-
-			// Process incoming from bridges
-			go func() {
-				err = (&bridges.Bridges{Client: mc.Client}).SyncCallback(evt)
-				if err != nil {
-					slog.Error(err.Error())
-					debug.PrintStack()
-				}
-			}()
-		}
-	}()
-
-	err = mc.Sync(ch)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
+	syncWatcher.wg.Wait()
+	slog.Debug("Syncing details", "status", "completed and exiting")
 	return nil
 }
 
