@@ -5,6 +5,7 @@
 - [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
 - [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
 - [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
+- [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
@@ -57,6 +58,14 @@ You can configure your API address in conf.yaml. This would be same address you 
 swag init
 ```
 > [host]/docs/index.html
+
+## Messaging Queue
+The incoming messages are routed to the queue:
+```yaml
+exchange: "bridges.topic"
+binding key: "bridges.topic.add_new_device"
+queue name: userId
+```
 
 ## Notes
 ### Postgres issues
