@@ -69,15 +69,16 @@ func RestAPIRoutines() {
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%s", host, port)
 	docs.SwaggerInfo.BasePath = fmt.Sprintf("/api/v%d", apiVersion)
 
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
+
 	router.POST(fmt.Sprintf("/api/v%d/login", apiVersion), apis.Login)
 	router.POST(fmt.Sprintf("/api/v%d/store", apiVersion), apis.Store)
-	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
 	router.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
-	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
-	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.RemoveDevices)
 	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
 
-	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
+	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.RemoveDevices)
 
 	tlsCert := cfg.Server.Tls.Crt
 	tlsKey := cfg.Server.Tls.Key
