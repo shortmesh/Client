@@ -142,6 +142,40 @@ func (r *RoomsDB) Clear(bridgeName string, isBridgeBot bool) error {
 	return nil
 }
 
+func (r *RoomsDB) Delete(roomId string) error {
+	tx, err := r.connection.Begin()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`DELETE FROM rooms WHERE room_id = ?`)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(roomId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
 func (r *RoomsDB) Save(
 	roomId string,
 	bridgeName string,
@@ -155,7 +189,7 @@ func (r *RoomsDB) Save(
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO rooms (device_id, bridge_name, room_id, contact_name, is_bridge_bot, timestamp) 
+		INSERT OR IGNORE INTO rooms (device_id, bridge_name, room_id, contact_name, is_bridge_bot, timestamp) 
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {

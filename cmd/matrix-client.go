@@ -85,24 +85,35 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
 		if err != nil {
 			slog.Error(err.Error())
-			debug.PrintStack()
+			// debug.PrintStack()
 		}
 		ch <- evt
 	})
 
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
+		room := rooms.Rooms{
+			Client: m.Client,
+			ID:     &evt.RoomID,
+		}
 		if evt.Type.Class == event.ToDeviceEventType {
 			machine.HandleToDeviceEvent(ctx, evt)
-		} else {
-			(&rooms.Rooms{
-				Client: m.Client,
-				ID:     &evt.RoomID,
-			}).GetInvites(evt)
+		} else if evt.Content.AsMember().Membership == event.MembershipInvite {
+			err := room.GetInvites(evt)
+			if err != nil {
+				slog.Error(err.Error())
+			}
+		} else if evt.Content.AsMember().Membership == event.MembershipLeave {
+			err := room.Delete()
+			if err != nil {
+				slog.Error(err.Error())
+			}
 		}
 	})
 
 	if err := m.Client.Sync(); err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
 
 	return nil
