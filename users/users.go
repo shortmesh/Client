@@ -195,6 +195,10 @@ func FetchMessageContact(
 	)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+
+		}
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err

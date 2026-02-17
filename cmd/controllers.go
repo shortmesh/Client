@@ -351,22 +351,26 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		debug.PrintStack()
 		return nil, err
 	}
-	roomId := id.RoomID(*roomIdStr)
+
+	var roomId id.RoomID
 	room := rooms.Rooms{
 		Client: c.Client,
-		ID:     &roomId,
+		ID:     nil,
 	}
 
-	if room.ID == nil {
+	if roomIdStr == nil {
 		slog.Debug("Creating contact room!")
-		roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
+		_roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
 			return nil, err
 		}
-		room.ID = roomId
+		roomId = *_roomId
+	} else {
+		roomId = id.RoomID(*roomIdStr)
 	}
+	room.ID = &roomId
 
 	err = room.SendMessage(message)
 	if err != nil {
