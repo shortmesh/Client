@@ -271,8 +271,7 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	}
 	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
 	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
-	slog.Debug("Contactusername: " + contactUsername)
-	slog.Debug("Deviceusername: " + deviceIdUsername)
+	slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
 
 	bridge, err := (&bridges.Bridges{
 		Client: room.Client,
@@ -282,7 +281,7 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	}
 
 	botUsername := bridge.BridgeConfig.BotName
-	slog.Debug("Botusername: " + botUsername)
+	slog.Debug("Bridges", "Botusername", botUsername)
 
 	roomId, err := room.CreateRoom([]id.UserID{
 		id.UserID(contactUsername),

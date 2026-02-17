@@ -217,6 +217,8 @@ func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *ev
 		return nil, err
 	}
 
+	message := evt.Content.AsMessage().Body
+
 	isManagementRoom, err := rooms.IsManagementRoom(client, roomId, bridge.BridgeConfig.BotName)
 	if err != nil {
 		slog.Error(err.Error())
@@ -225,7 +227,6 @@ func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *ev
 	}
 
 	if isManagementRoom {
-		message := evt.Content.AsMessage().Body
 		slog.Debug(
 			"Management room",
 			"roomId", roomId.String(),
