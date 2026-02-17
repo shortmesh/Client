@@ -142,7 +142,8 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 	}
 
 	if matched {
-		deviceId := strings.Fields(message)[0]
+		extractedMessage := strings.Fields(message)
+		deviceId := extractedMessage[len(extractedMessage)-1]
 		(&devices.Devices{
 			Client:     b.Client,
 			DeviceId:   deviceId,

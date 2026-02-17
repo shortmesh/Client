@@ -22,7 +22,6 @@ import (
 type DeviceSendTextMessage struct {
 	Username     string `json:"username" example:"john_doe"`
 	PlatformName string `json:"platform_name" example:"john_doe"`
-	DeviceId     string `json:"device_id" example:"john_doe"`
 	Contact      string `json:"contact" example:"john_doe"`
 	Text         string `json:"text" example:"john_doe"`
 }
@@ -75,12 +74,13 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 	client.AccessToken = user.Client.AccessToken
+	deviceId := c.Param("deviceId")
 
 	_, err = (&cmd.Controller{
 		Client: client,
 	}).SendMessage(
 		deviceSendTextMessage.PlatformName,
-		deviceSendTextMessage.DeviceId,
+		deviceId,
 		deviceSendTextMessage.Contact,
 		deviceSendTextMessage.Text,
 	)
