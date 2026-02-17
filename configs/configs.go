@@ -1,15 +1,12 @@
 package configs
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
-	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/id"
 )
 
 type Tls struct {
@@ -74,14 +71,14 @@ func (c *Conf) GetBridgeConfig(name string) (*BridgeConfig, bool) {
 	return nil, false
 }
 
-func ParseImage(client *mautrix.Client, url string) ([]byte, error) {
-	fmt.Printf(">>\tParsing image for: %v\n", url)
-	contentUrl, err := id.ParseContentURI(url)
-	if err != nil {
-		return nil, err
-	}
-	return client.DownloadBytes(context.Background(), contentUrl)
-}
+// func ParseImage(client *mautrix.Client, url string) ([]byte, error) {
+// 	fmt.Printf(">>\tParsing image for: %v\n", url)
+// 	contentUrl, err := id.ParseContentURI(url)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return client.Bytes(context.Background(), contentUrl)
+// }
 
 func (c *Conf) CheckSuccessPattern(bridgeType string, input string) (bool, error) {
 	config, ok := c.GetBridgeConfig(bridgeType)
