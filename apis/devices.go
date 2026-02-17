@@ -224,14 +224,14 @@ func RemoveDevices(c *gin.Context) {
 		"",
 	)
 
-	// _, err := users.FetchUser(client)
-	// if err != nil {
-	// 	c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
-	// 	return
-	// }
+	user, err := users.FetchUser(client)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
+		return
+	}
 	// client.AccessToken = user.Client.AccessToken
 
-	bridge, err := (&bridges.Bridges{Client: client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
+	bridge, err := (&bridges.Bridges{Client: user.Client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
