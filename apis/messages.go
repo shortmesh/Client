@@ -73,7 +73,10 @@ func SendMessage(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
 		return
 	}
-	client.AccessToken = user.Client.AccessToken
+	if user.Client == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
 	deviceId := c.Param("deviceId")
 
 	_, err = (&cmd.Controller{

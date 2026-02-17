@@ -229,6 +229,11 @@ func RemoveDevices(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
 		return
 	}
+
+	if user.Client == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
 	// client.AccessToken = user.Client.AccessToken
 
 	bridge, err := (&bridges.Bridges{Client: user.Client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
