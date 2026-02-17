@@ -380,7 +380,8 @@ func (b *Bridges) queryCommand(query string) error {
 }
 
 func (b *Bridges) RemoveDevice(deviceId string) error {
-	cmd := fmt.Sprintf("%s %s", b.BridgeConfig.Cmd["logout"], deviceId)
+	cmd := strings.ReplaceAll(b.BridgeConfig.Cmd["logout"], "%s", deviceId)
+	cmd = fmt.Sprintf("%s %s", cmd, deviceId)
 	if err := b.queryCommand(cmd); err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
