@@ -263,15 +263,15 @@ func (c *Controller) AddBridges() error {
 // !Danger if room already exist, this won't fail but would create a failed room
 // !Have something that records all existing rooms into a db at start
 func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
-	cfg, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
-	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
-	slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
+	// cfg, err := configs.GetConf()
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	debug.PrintStack()
+	// 	return nil, err
+	// }
+	// contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+	// deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
+	// slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
 
 	bridge, err := (&bridges.Bridges{
 		Client: room.Client,
@@ -284,8 +284,8 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	slog.Debug("Bridges", "Botusername", botUsername)
 
 	roomId, err := room.CreateRoom([]id.UserID{
-		id.UserID(contactUsername),
-		id.UserID(deviceIdUsername),
+		id.UserID(contact),
+		id.UserID(deviceId),
 		id.UserID(botUsername),
 	}, false)
 

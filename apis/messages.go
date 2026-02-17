@@ -84,6 +84,10 @@ func SendMessage(c *gin.Context) {
 		deviceSendTextMessage.Contact,
 		deviceSendTextMessage.Text,
 	)
-	c.JSON(http.StatusCreated, gin.H{"status": "Message sent!"})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault!"})
+		return
+	}
 
+	c.JSON(http.StatusOK, gin.H{"status": "Message sent!"})
 }
