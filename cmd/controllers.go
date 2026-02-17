@@ -284,10 +284,7 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	botUsername := bridge.BridgeConfig.BotName
 	slog.Debug("Botusername: " + botUsername)
 
-	roomId, err := (&rooms.Rooms{
-		Client:   room.Client,
-		IsBridge: true,
-	}).CreateRoom([]id.UserID{
+	roomId, err := room.CreateRoom([]id.UserID{
 		id.UserID(contactUsername),
 		id.UserID(deviceIdUsername),
 		id.UserID(botUsername),
