@@ -142,15 +142,24 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 
 	if matched {
 		extractedMessage := strings.Fields(message)
-		deviceId := extractedMessage[len(extractedMessage)-1]
+
+		// cfg, err := configs.GetConf()
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// 	debug.PrintStack()
+		// 	return false, err
+		// }
+
+		// deviceId, err := cfg.FormatUsername(b.BridgeConfig.Name, extractedMessage[len(extractedMessage)-1])
+		deviceId := strings.ReplaceAll(extractedMessage[len(extractedMessage)-1], "+", "")
+
 		(&devices.Devices{
 			Client:     b.Client,
 			DeviceId:   deviceId,
 			BridgeName: b.BridgeConfig.Name,
 		}).Save()
 
-		err := rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart())
-		if err != nil {
+		if err = rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart()); err != nil {
 			slog.Error(err.Error())
 			return false, err
 		}
@@ -396,7 +405,6 @@ func (b *Bridges) RemoveDevice(deviceId string) error {
 	err := (&devices.Devices{Client: b.Client, DeviceId: deviceId}).Remove()
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return err
 	}
 
