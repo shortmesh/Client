@@ -149,6 +149,12 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 			DeviceId:   deviceId,
 			BridgeName: b.BridgeConfig.Name,
 		}).Save()
+
+		err := rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart())
+		if err != nil {
+			slog.Error(err.Error())
+			return false, err
+		}
 		slog.Debug("Saved new device", "name", deviceId)
 	}
 	return false, nil
