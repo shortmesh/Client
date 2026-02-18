@@ -244,7 +244,8 @@ func RemoveDevices(c *gin.Context) {
 		return
 	}
 
-	err = bridge.RemoveDevice(clientRemoveDevices.PlatformName)
+	err = bridge.RemoveDevice(clientRemoveDevices.DeviceId)
+	slog.Debug("Devices", "removing", clientRemoveDevices.DeviceId)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -252,5 +253,5 @@ func RemoveDevices(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"status": fmt.Sprintf("Request to remove created for %s", clientRemoveDevices.PlatformName)})
+	c.JSON(http.StatusOK, gin.H{"status": fmt.Sprintf("Request to remove created for %s", clientRemoveDevices.PlatformName)})
 }

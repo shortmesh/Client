@@ -48,6 +48,21 @@ def list_devices(username):
     if response.status_code == 200:
         print(json.dumps(response.json(), indent=4))
 
+def remove_device(username, platform_name, device_id):
+    url = "http://localhost:8080/api/v1/devices"
+    payload = {
+        "username" : username,
+        "platform_name" : platform_name,
+        "device_id" : device_id,
+    }
+    response = requests.delete(url, json=payload)
+
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        print("Device removed successfully...")
+        print(json.dumps(response.json(), indent=4))
+
 def add_device(username, platform_name):
     url = "http://localhost:8080/api/v1/devices"
     payload = {
@@ -94,6 +109,15 @@ if __name__ == "__main__":
         username = sys.argv[2]
         try:
             list_devices(username)
+        except Exception as error:
+            print(error)
+
+    elif sys.argv[1] == "--remove-device":
+        username = sys.argv[2]
+        platformName = sys.argv[3]
+        device_id = sys.argv[4]
+        try:
+            remove_device(username, platformName, device_id)
         except Exception as error:
             print(error)
 
