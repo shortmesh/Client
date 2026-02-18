@@ -19,6 +19,7 @@ The project is built to work with any Matrix homeserver and any number of Matrix
  ## Requirements
  - A running Matrix homeserver
  - Bridges configured on homeserver which can be activated in the conf.yaml file
+ - RabbitMQ
  - golang
  - swagger
 ```bash
