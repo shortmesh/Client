@@ -33,7 +33,7 @@ type ApiDeleteUserRequest struct {
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /delete [delete]
+// @Router /users [delete]
 func Delete(c *gin.Context) {
 	conf, err := configs.GetConf()
 	var apiDeleteUserRequest ApiDeleteUserRequest

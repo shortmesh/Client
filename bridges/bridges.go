@@ -153,11 +153,16 @@ func (b *Bridges) checkIfSuccess(message string) (bool, error) {
 		// deviceId, err := cfg.FormatUsername(b.BridgeConfig.Name, extractedMessage[len(extractedMessage)-1])
 		deviceId := strings.ReplaceAll(extractedMessage[len(extractedMessage)-1], "+", "")
 
-		(&devices.Devices{
+		err := (&devices.Devices{
 			Client:     b.Client,
 			DeviceId:   deviceId,
 			BridgeName: b.BridgeConfig.Name,
 		}).Save()
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return false, err
+		}
 
 		if err = rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart()); err != nil {
 			slog.Error(err.Error())
