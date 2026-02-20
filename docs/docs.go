@@ -194,7 +194,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/devices/:deviceId/message": {
+        "/devices/{deviceId}/message": {
             "post": {
                 "description": "Sends a text message using the provided credentials and bridge details",
                 "consumes": [
@@ -373,9 +373,77 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users": {
+            "delete": {
+                "description": "Delete the user's access token to be used for Syncing",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Delete user credentials for syncing",
+                "parameters": [
+                    {
+                        "description": "Login Credentials",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/apis.ApiDeleteUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User stored!\" \"Successfully stored",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Login failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "apis.ApiDeleteUserRequest": {
+            "description": "Request payload for deleting user data for syncing",
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "example": "john_doe"
+                }
+            }
+        },
         "apis.ApiStoreRequestJson": {
             "description": "Request payload for storing user data for syncing",
             "type": "object",
@@ -455,10 +523,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "contact": {
-                    "type": "string",
-                    "example": "john_doe"
-                },
-                "device_id": {
                     "type": "string",
                     "example": "john_doe"
                 },
