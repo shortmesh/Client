@@ -1,7 +1,6 @@
 package apis
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -56,24 +55,6 @@ func Delete(c *gin.Context) {
 		id.NewUserID(username, conf.HomeServerDomain),
 		"",
 	)
-
-	user, err := users.FetchUser(client)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
-		return
-	}
-	if user.Client == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-	client.AccessToken = user.Client.AccessToken
-
-	_, err = client.Logout(context.Background())
-	if err != nil {
-		slog.Error(err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 
 	err = users.RemoveUser(client)
 	if err != nil {
