@@ -66,6 +66,7 @@ func Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
+	client.AccessToken = user.Client.AccessToken
 
 	_, err = client.Logout(context.Background())
 	if err != nil {
