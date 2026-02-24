@@ -57,6 +57,16 @@ func Delete(c *gin.Context) {
 		"",
 	)
 
+	user, err := users.FetchUser(client)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
+		return
+	}
+	if user.Client == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
 	_, err = client.Logout(context.Background())
 	if err != nil {
 		slog.Error(err.Error())
