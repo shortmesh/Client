@@ -70,5 +70,5 @@ func Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "User created!"})
+	c.JSON(http.StatusOK, gin.H{"status": "User deleted!"})
 }
