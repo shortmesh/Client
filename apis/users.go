@@ -28,8 +28,8 @@ type ApiDeleteUserRequest struct {
 // @Description Delete the user's access token to be used for Syncing
 // @Accept  json
 // @Produce  json
-// @Param   payload body ApiDeleteUserRequest true "Login Credentials"
-// @Success 200 {string} string "User stored!" "Successfully stored"
+// @Param   payload body ApiDeleteUserRequest true "Delete Credentials"
+// @Success 200 {string} string "User deleted!" "Successfully deleted"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
 // @Failure 500 {object} map[string]string "Internal server error"

@@ -78,7 +78,7 @@ func RestAPIRoutines() {
 	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
 
 	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
-	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.RemoveDevices)
+	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.Delete)
 
 	tlsCert := cfg.Server.Tls.Crt
 	tlsKey := cfg.Server.Tls.Key
