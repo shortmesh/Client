@@ -38,13 +38,16 @@ type BridgeConfig struct {
 }
 
 type Conf struct {
-	ApiVersion       int            `yaml:"api_version"`
-	Server           Server         `yaml:"server"`
-	KeystoreFilepath string         `yaml:"keystore_filepath"`
-	HomeServer       string         `yaml:"homeserver"`
-	HomeServerDomain string         `yaml:"homeserver_domain"`
-	Bridges          []BridgeConfig `yaml:"bridges"`
-	RabbitMQ         RabbitMQ       `yaml:"rabbitmq"`
+	ApiVersion              int            `yaml:"api_version"`
+	Server                  Server         `yaml:"server"`
+	KeystoreFilepath        string         `yaml:"keystore_filepath"`
+	HomeServer              string         `yaml:"homeserver"`
+	HomeServerDomain        string         `yaml:"homeserver_domain"`
+	Bridges                 []BridgeConfig `yaml:"bridges"`
+	RabbitMQ                RabbitMQ       `yaml:"rabbitmq"`
+	MAS_CLIENT_ID           string         `yaml:"mas_client_id"`
+	MAS_CLIENT_SECRET       string         `yaml:"mas_client_secret"`
+	API_AUTHENTICATION_INFO string         `yaml:"api_authentication_info"`
 }
 
 func GetConf() (*Conf, error) {

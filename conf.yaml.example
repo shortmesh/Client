@@ -1,6 +1,9 @@
 api_version: 1
 homeserver: ""
 homeserver_domain: ""
+mas_client_id: ""
+mas_client_secret: ""
+api_authentication_info: "ShortMesh API Authentication v1"
 server:
   host: "0.0.0.0"
   port: 8080
