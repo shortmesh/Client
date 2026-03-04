@@ -7,6 +7,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.11.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/swaggo/files v1.0.1

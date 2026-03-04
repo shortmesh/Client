@@ -18,6 +18,7 @@ id = config_data["mas_client_id"]
 time = str(int(time.time()))
 header_timestamp = time
 nonce = secrets.token_urlsafe()
+# nonce = "0000000000000000"
 
 def get_signature(method, path, body):
     string_to_sign = id.encode() + method + path + header_timestamp.encode() + nonce.encode() + body

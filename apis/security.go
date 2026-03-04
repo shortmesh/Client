@@ -33,6 +33,12 @@ func VerifyRequest(id, method, path, timestamp, nonce, body, receivedSignature s
 		return false, fmt.Errorf("request expired or clock desync")
 	}
 
+	ok := ValidateNonce(nonce)
+	if !ok {
+		slog.Debug("Consumed nonce")
+		return false, fmt.Errorf("rejected!!")
+	}
+
 	canonicalString := id + method + path + timestamp + nonce + body
 
 	conf, err := configs.GetConf()

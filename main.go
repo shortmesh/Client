@@ -28,6 +28,8 @@ func main() {
 	})
 	slog.SetDefault(slog.New(handler))
 
+	apis.SessionsCacheInit()
+
 	go cmd.SyncUsers()
 	go RestAPIRoutines()
 	// go rabbitmq.RabbitMQReceiver()
