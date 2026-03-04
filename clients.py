@@ -4,6 +4,27 @@ import os
 import sys
 import requests
 import json
+import yaml
+import secrets
+import hmac
+import hashlib
+import time
+from email.utils import format_datetime
+
+with open("conf.yaml", 'r') as file:
+    config_data = yaml.safe_load(file)
+
+id = config_data["mas_client_id"]
+time = str(int(time.time()))
+header_timestamp = time
+nonce = secrets.token_urlsafe()
+
+def get_signature(method, path, body):
+    string_to_sign = id.encode() + method + path + header_timestamp.encode() + nonce.encode() + body
+    secret = config_data["mas_client_secret"].encode()
+    signature = hmac.new(secret, string_to_sign, hashlib.sha256).hexdigest()
+    print("- signature:", signature)
+    return signature
 
 def send_message(username, platformName, deviceId, contact, message):
     url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
@@ -14,7 +35,6 @@ def send_message(username, platformName, deviceId, contact, message):
         "contact" : contact, 
         "text" : message, 
     }
-    print(payload)
     response = requests.post(url, json=payload)
 
     response.raise_for_status()
@@ -37,11 +57,24 @@ def store(username, accessToken, deviceId):
     if response.status_code == 200:
         print(json.dumps(response.json(), indent=4))
 
+def get_header(method, path, body):
+    return {
+        "X-ShortMesh-ID": id,
+        "X-ShortMesh-Timestamp": header_timestamp, 
+        "X-ShortMesh-Nonce": nonce,
+        "X-ShortMesh-Signature": get_signature(method.encode(), path.encode(), body.encode()),
+    }
+
 def list_devices(username):
     url = "http://localhost:8080/api/v1/devices"
     payload = { "username" : username, }
-    print(payload)
-    response = requests.get(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("GET", "/api/v1/devices", f_payload)
+    print("- header:", header)
+
+    response = requests.get(url, json=payload, headers=header)
 
     response.raise_for_status()
 

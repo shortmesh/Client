@@ -2,19 +2,39 @@ package apis
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"runtime/debug"
-	"strings"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/configs"
-	"golang.org/x/crypto/hkdf"
 )
 
-func authenticateBearer(bearer string) (bool, error) {
+const (
+	MaxSkewSeconds = 30
+)
+
+func VerifyRequest(id, method, path, timestamp, nonce, body, receivedSignature string) (bool, error) {
+	epoch, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false, fmt.Errorf("invalid epoch timestamp")
+	}
+
+	ts := time.Unix(epoch, 0)
+
+	if math.Abs(time.Since(ts).Seconds()) > MaxSkewSeconds {
+		return false, fmt.Errorf("request expired or clock desync")
+	}
+
+	canonicalString := id + method + path + timestamp + nonce + body
+
 	conf, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
@@ -22,19 +42,21 @@ func authenticateBearer(bearer string) (bool, error) {
 		return false, err
 	}
 
-	secret := []byte(conf.MAS_CLIENT_ID)
-	salt := []byte(conf.MAS_CLIENT_SECRET)
-	info := []byte(conf.API_AUTHENTICATION_INFO)
-	keyLen := 32
+	h := hmac.New(sha256.New, []byte(conf.MAS_CLIENT_SECRET))
+	h.Write([]byte(canonicalString))
+	expectedSignature := hex.EncodeToString(h.Sum(nil))
+	slog.Debug("Verify request",
+		"id", id,
+		"method", method,
+		"path", path,
+		"timestamp", timestamp,
+		"nonce", nonce,
+		"body", body,
+		"signature", expectedSignature,
+		"received", receivedSignature,
+	)
 
-	hkdf := hkdf.New(sha256.New, secret, salt, info)
-
-	key := make([]byte, keyLen)
-	if _, err := io.ReadFull(hkdf, key); err != nil {
-		return false, err
-	}
-
-	return bytes.Equal(key, []byte(bearer)), nil
+	return hmac.Equal([]byte(expectedSignature), []byte(receivedSignature)), nil
 }
 
 func SecureMiddleware() gin.HandlerFunc {
@@ -49,42 +71,41 @@ func SecureMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		bearer, err := extractBearerToken(c)
+		method := c.Request.Method
+		path := c.Request.URL.Path
+
+		id := c.GetHeader("X-ShortMesh-ID")
+		timestamp := c.GetHeader("X-ShortMesh-Timestamp")
+		nonce := c.GetHeader("X-ShortMesh-Nonce")
+		signature := c.GetHeader("X-ShortMesh-Signature")
+
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.AbortWithStatusJSON(400, gin.H{"error": "Could not read body"})
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		ok, err := VerifyRequest(
+			id,
+			method,
+			path,
+			timestamp,
+			nonce,
+			string(bodyBytes),
+			signature,
+		)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
+			c.AbortWithStatusJSON(400, gin.H{"error": err.Error()})
 			return
 		}
 
-		ok, err := authenticateBearer(bearer)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return
+		if !ok {
+			c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
 		}
 
-		if ok {
-			c.Next()
-		}
+		c.Next()
 	}
-}
-
-func extractBearerToken(c *gin.Context) (string, error) {
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		return "", fmt.Errorf("Authorization header is required")
-	}
-
-	// Check if it starts with "Bearer "
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return "", fmt.Errorf("Authorization header must start with 'Bearer '")
-	}
-
-	// Extract the token (remove "Bearer " prefix)
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	if token == "" {
-		return "", fmt.Errorf("Bearer token cannot be empty")
-	}
-
-	return token, nil
 }
