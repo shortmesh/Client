@@ -2,8 +2,11 @@ package rooms
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"runtime/debug"
+
+	"github.com/shortmesh/core/configs"
 )
 
 type RoomsDB struct {
@@ -13,7 +16,14 @@ type RoomsDB struct {
 }
 
 func (r *RoomsDB) Init() error {
-	db, err := sql.Open("sqlite3", r.Filepath)
+	conf, err := configs.GetConf()
+	if err != nil {
+		return err
+	}
+
+	key := conf.DATABASE_KEY
+	dbname := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096", r.Filepath, key)
+	db, err := sql.Open("sqlite3", dbname)
 	if err != nil {
 		return err
 	}

@@ -2,8 +2,11 @@ package devices
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"runtime/debug"
+
+	"github.com/shortmesh/core/configs"
 )
 
 type DeviceDB struct {
@@ -13,7 +16,14 @@ type DeviceDB struct {
 }
 
 func (d *DeviceDB) Init() error {
-	db, err := sql.Open("sqlite3", d.Filepath)
+	conf, err := configs.GetConf()
+	if err != nil {
+		return err
+	}
+
+	key := conf.DATABASE_KEY
+	dbname := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096", d.Filepath, key)
+	db, err := sql.Open("sqlite3", dbname)
 	if err != nil {
 		return err
 	}

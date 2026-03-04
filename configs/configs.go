@@ -48,6 +48,7 @@ type Conf struct {
 	MAS_CLIENT_ID           string         `yaml:"mas_client_id"`
 	MAS_CLIENT_SECRET       string         `yaml:"mas_client_secret"`
 	API_AUTHENTICATION_INFO string         `yaml:"api_authentication_info"`
+	DATABASE_KEY            string         `yaml:"db_key"`
 }
 
 func GetConf() (*Conf, error) {

@@ -7,8 +7,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/mattn/go-sqlite3"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/shortmesh/core/configs"
 )
 
 type ClientDB struct {
@@ -22,21 +21,16 @@ type UserDB struct {
 	Filepath   string
 }
 
-func updateDbCallback(conn *sqlite3.SQLiteConn) error {
-	conn.RegisterUpdateHook(func(
-		op int,
-		dbName, tableName string,
-		rowID int64,
-	) {
-		// Your callback logic here
-		fmt.Printf("Operation %d on table %s, row %d\n", op, tableName, rowID)
-	})
-	return nil
-}
-
-// https://github.com/mattn/go-sqlite3/blob/v1.14.28/_example/simple/simple.go
+// https://github.com/mattn/go-sql/blob/v1.14.28/_example/simple/simple.go
 func (UserDB *UserDB) Init() error {
-	db, err := sql.Open("sqlite3", UserDB.Filepath)
+	conf, err := configs.GetConf()
+	if err != nil {
+		return err
+	}
+
+	key := conf.DATABASE_KEY
+	dbname := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096", UserDB.Filepath, key)
+	db, err := sql.Open("sqlite3", dbname)
 	if err != nil {
 		return err
 	}
@@ -63,10 +57,14 @@ func (UserDB *UserDB) Init() error {
 }
 
 func (c *ClientDB) Init() error {
-	db, err := sql.Open("sqlite3", c.Filepath)
+	conf, err := configs.GetConf()
 	if err != nil {
 		return err
 	}
+
+	key := conf.DATABASE_KEY
+	dbname := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096", c.Filepath, key)
+	db, err := sql.Open("sqlite3", dbname)
 
 	c.connection = db
 
