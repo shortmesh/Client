@@ -67,8 +67,8 @@ setup-systemd:
 	else \
 		echo "conf.yaml file already exists at /opt/matrix-client/conf.yaml"; \
 	fi
-	@echo "Creating data directory..."
-	@mkdir -p /opt/matrix-client/data
+	@echo "Creating db directory..."
+	@mkdir -p /opt/matrix-client/db
 	@echo "Creating downloads directory..."
 	@mkdir -p /opt/matrix-client/downloads
 	@echo "Creating cache directories..."
