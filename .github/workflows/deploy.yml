@@ -25,6 +25,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libolm-dev
 
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
       - name: Build binary
         run: |
           make build
