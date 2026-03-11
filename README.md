@@ -42,7 +42,7 @@ sudo apt install libolm-dev
 ```
 
 ## Running
-You can configure the bridges supported by your Homeserver in conf.yaml. \
+You can configure the bridges supported by your Homeserver in conf.yaml.
 The client would try to create Rooms and synchronize for your users for every Bridge it comes across in conf.yaml.
 
 You can modify the conf.yaml file after you make a copy. Place in the following:
