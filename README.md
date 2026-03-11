@@ -1,19 +1,20 @@
-# ShortMesh core
+# ShortMesh Client
 
 ## Contents
+- [Description](https://github.com/shortmesh/Core/blob/master/README.md#description)
+- [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
+- [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
+- [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
+- [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
 
 - Installations
 
 - Bridge setups
 
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
-
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
-
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
-    
     - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
-    
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
 
 ## Installation
@@ -36,27 +37,67 @@ bridge.conf file:
 encryption > self_sign = true
 ```
  
-## Schemas
+## Description
+ShortMesh Client is a Matrix protocol client  that provides messaging capabilities across multiple Matrix bridges. \
+The project is built to work with any Matrix homeserver and any number of Matrix bridges can be configured to work on it.
+
+ ## Requirements
+ - A running Matrix homeserver
+ - Bridges configured on homeserver which can be activated in the conf.yaml file
+ - RabbitMQ
+ - golang
+ - swagger
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+go get github.com/swaggo/http-swagger
+go get github.com/swaggo/files # optional, but useful for serving the swagger files
+export PATH=$PATH:$(go env GOPATH)/bin
 ```
-Users
-____
-user_name string ""
-
-access_token string ""
-
+- libolm
+> Mac OS
+```bash
+brew install libolm
+export CGO_CFLAGS="-I/opt/homebrew/include"
+export CGO_LDFLAGS="-L/opt/homebrew/lib"
 ```
 
+> Ubuntu
+```bash
+sudo apt install libolm-dev
 ```
-Rooms
-────
-room_id string ""
 
-room_type enum direct | management | group
+## Running
+You can configure the bridges supported by your Homeserver in conf.yaml.
+The client would try to create Rooms and synchronize for your users for every Bridge it comes across in conf.yaml.
 
-is_encrypted boolean # True is bridge is encrypted
+You can modify the conf.yaml file after you make a copy. Place in the following:
+- `homeserver`
+- `homeserver_domain`
+- `mas_client_id`
+- `mas_client_secret`
+- `db_key #should be a high entropy string`
 
-bridge_name string # The actual name is exposed to the bridge; mostly used to ID groups 
+```bash
+cp conf.yaml.example conf.yaml
+go mod tidy
 
+go run .
+```
+
+## API docs
+You can configure your API address in conf.yaml. This would be same address you can access your generated swagger API docs.
+
+```bash
+swag init
+```
+> [host]/docs/index.html
+
+## Messaging Queue
+The incoming messages are routed to the queue:
+```yaml
+exchange: "bridges.topic"
+binding key: "bridges.topic.add_new_device"
+queue name: userId
 ```
 
 ## Notes

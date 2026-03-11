@@ -1,32 +1,26 @@
-package main
+package configs
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
-	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/id"
 )
-
-type BridgeConfig struct {
-	BotName          string            `yaml:"botname"`
-	UsernameTemplate string            `yaml:"username_template"`
-	Cmd              map[string]string `yaml:"cmd"` // ← map instead of slice of maps
-}
 
 type Tls struct {
 	Crt string `yaml:"crt"`
 	Key string `yaml:"key"`
 }
 
-type ServerWebsocket struct {
-	Port string `yaml:"port"`
-	Host string `yaml:"host"`
-	Tls  Tls    `yaml:"tls"`
+type RabbitMQ struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Port     int    `yaml:"port"`
+	Host     string `yaml:"host"`
+	IsTLs    bool   `yaml:"is_tls"`
+	Tls      Tls    `yaml:"tls"`
 }
 
 type Server struct {
@@ -35,58 +29,60 @@ type Server struct {
 	Tls  Tls    `yaml:"tls"`
 }
 
-type Conf struct {
-	Server           Server                    `yaml:"server"`
-	Websocket        ServerWebsocket           `yaml:"websocket"`
-	KeystoreFilepath string                    `yaml:"keystore_filepath"`
-	HomeServer       string                    `yaml:"homeserver"`
-	HomeServerDomain string                    `yaml:"homeserver_domain"`
-	Bridges          []map[string]BridgeConfig `yaml:"bridges"`
-	User             User                      `yaml:"user"`
-	PickleKey        string                    `yaml:"pickle_key"`
+type BridgeConfig struct {
+	Name                    string            `yaml:"name"`
+	BotName                 string            `yaml:"botname"`
+	UsernameTemplate        string            `yaml:"username_template"`
+	DisplayUsernameTemplate string            `yaml:"display_username_template"`
+	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
 }
 
-func (c *Conf) getConf() (*Conf, error) {
+type Conf struct {
+	ApiVersion              int            `yaml:"api_version"`
+	Server                  Server         `yaml:"server"`
+	KeystoreFilepath        string         `yaml:"keystore_filepath"`
+	HomeServer              string         `yaml:"homeserver"`
+	HomeServerDomain        string         `yaml:"homeserver_domain"`
+	Bridges                 []BridgeConfig `yaml:"bridges"`
+	RabbitMQ                RabbitMQ       `yaml:"rabbitmq"`
+	MAS_CLIENT_ID           string         `yaml:"mas_client_id"`
+	MAS_CLIENT_SECRET       string         `yaml:"mas_client_secret"`
+	API_AUTHENTICATION_INFO string         `yaml:"api_authentication_info"`
+	DATABASE_KEY            string         `yaml:"db_key"`
+}
+
+func GetConf() (*Conf, error) {
+	c := &Conf{}
 	yamlFile, err := os.ReadFile("conf.yaml")
 	if err != nil {
-		return c, err
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
-		return c, err
+		return nil, err
 	}
 
 	return c, nil
 }
 
-func (c *Conf) GetBridgeConfig(bridgeType string) (*BridgeConfig, bool) {
-	for _, entry := range c.Bridges {
-		if config, ok := entry[bridgeType]; ok {
-			return &config, true
+func (c *Conf) GetBridgeConfig(name string) (*BridgeConfig, bool) {
+	for _, bridge := range c.Bridges {
+		if bridge.Name == name {
+			return &bridge, true
 		}
 	}
 	return nil, false
 }
 
-func (c *Conf) GetBridges() []*Bridges {
-	var bridges []*Bridges
-	for _, entry := range c.Bridges {
-		for name, _ := range entry {
-			bridges = append(bridges, &Bridges{Name: name})
-		}
-	}
-	return bridges
-}
-
-func ParseImage(client *mautrix.Client, url string) ([]byte, error) {
-	fmt.Printf(">>\tParsing image for: %v\n", url)
-	contentUrl, err := id.ParseContentURI(url)
-	if err != nil {
-		return nil, err
-	}
-	return client.DownloadBytes(context.Background(), contentUrl)
-}
+// func ParseImage(client *mautrix.Client, url string) ([]byte, error) {
+// 	fmt.Printf(">>\tParsing image for: %v\n", url)
+// 	contentUrl, err := id.ParseContentURI(url)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return client.Bytes(context.Background(), contentUrl)
+// }
 
 func (c *Conf) CheckSuccessPattern(bridgeType string, input string) (bool, error) {
 	config, ok := c.GetBridgeConfig(bridgeType)
@@ -128,7 +124,7 @@ func (c *Conf) CheckOngoingPattern(bridgeType string, input string) (bool, error
 	return matched, nil
 }
 
-func (c *Conf) CheckUsernameTemplate(bridgeType string, username string) (bool, error) {
+func (c *Conf) CheckUserBridgeBotTemplate(bridgeType string, username string) (bool, error) {
 	config, ok := c.GetBridgeConfig(bridgeType)
 	if !ok {
 		return false, fmt.Errorf("bridge type %s not found in configuration", bridgeType)
@@ -154,15 +150,16 @@ func (c *Conf) CheckUsernameTemplate(bridgeType string, username string) (bool, 
 	return matched, nil
 }
 
-func (c *Conf) FormatUsername(bridgeType string, username string) (string, error) {
-	config, ok := c.GetBridgeConfig(bridgeType)
+func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
+	config, ok := c.GetBridgeConfig(bridgeName)
 	if !ok {
-		return "", fmt.Errorf("bridge type %s not found in configuration", bridgeType)
+		return "", fmt.Errorf("bridge type %s not found in configuration", bridgeName)
 	}
 
 	if config.UsernameTemplate == "" {
-		return "", fmt.Errorf("username template not found for bridge type %s", bridgeType)
+		return "", fmt.Errorf("username template not found for bridge type %s", bridgeName)
 	}
+	username = strings.ReplaceAll(username, "+", "")
 
 	// Replace {{.}} with the actual username
 	formattedUsername := strings.ReplaceAll(config.UsernameTemplate, "{{.}}", username)
@@ -177,22 +174,4 @@ func (c *Conf) FormatUsername(bridgeType string, username string) (string, error
 	}
 
 	return formattedUsername, nil
-}
-
-// ExtractBracketContent extracts the content inside the first pair of parentheses in the input string.
-func ExtractBracketContent(input string) (string, error) {
-	start := strings.Index(input, "(")
-	end := strings.Index(input, ")")
-	if start == -1 || end == -1 || end <= start+1 {
-		return "", fmt.Errorf("no content found in brackets")
-	}
-	content := input[start+1 : end]
-	// Remove the "+" character from the content
-	content = strings.ReplaceAll(content, "+", "")
-	return content, nil
-}
-
-func ReverseAliasForEventSubscriber(username, bridgeName, homeserver string) string {
-	// @username:bridgeName:homeserver.com -> username_bridgeName
-	return fmt.Sprintf("@%s:%s:%s", username, bridgeName, homeserver)
 }

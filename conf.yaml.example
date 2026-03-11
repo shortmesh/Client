@@ -1,48 +1,47 @@
-homeserver: "https://relaysms.me"
-homeserver_domain: "relaysms.me"
-keystore_filepath: "db/users.db"
-pickle_key: ""
-user:
-  username: ""
-  password: ""
-  # manually fill all this if you don't have them - login
-  access_token: ""
-  recovery_key: ""
-  device_id: ""
-websocket:
-  port: 8090
-  host: "0.0.0.0"
-  tls:
-    crt: ""
-    key: ""
+api_version: 1
+homeserver: ""
+homeserver_domain: ""
+mas_client_id: ""
+mas_client_secret: ""
+api_authentication_info: "ShortMesh API Authentication v1"
+db_key: "" #hex encoded 64 characters long
 server:
-  port: 8080
   host: "0.0.0.0"
+  port: 8080
+rabbitmq:
+  username: "guest"
+  password: "guest"
+  port: 5672
+  host: "0.0.0.0"
+  is_tls: false
   tls:
     crt: ""
     key: ""
 bridges:
-  - signal:
-      botname: "@signalbot:relaysms.me"
-      username_template: "signal_{{.}}"
-      display_username_template: "{{.}} (Signal)"
-      cmd:
-        login: "!signal login"
-        failed: "Login failed: too many QR code refreshes"
-        success: "Successfully logged in as %s / %s"
-        cancel: "!signal cancel"
-        devices: "!signal list-logins"
-        ongoing: "Scan the QR code on your Signal app to log in"
+  - name: wa 
+    botname: "@whatsappbot:matrix.sherlockwisdom.com"
+    username_template: "whatsapp_{{.}}"
+    display_username_template: "{{.}} (WA)"
+    cmd:
+      login: "login qr"
+      list-logins: "* `%s` (+%s) - `CONNECTED`"
+      devices: "list-logins"
+      logout: "logout %s"
+      management: "!wa set-management-room"
+      success: "Successfully logged in as %s"
+      login-qr: "Scan the QR code with the WhatsApp mobile app to log in"
+      login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
+      login-qr-filename: "qr.png"
+      cancel: "cancel"
 
-  - wa:
-      botname: "@whatsappbot:relaysms.me"
-      username_template: "whatsapp_{{.}}"
-      display_username_template: "{{.}} (WA)"
-      cmd:
-        # login: "!wa login phone"
-        login: "!wa login qr"
-        failed: "Login failed: Entering code or scanning QR timed out. Please try again."
-        success: "Successfully logged in as %s"
-        cancel: "!wa cancel"
-        devices: "!wa list-logins"
-        ongoing: "Scan the QR code with the WhatsApp mobile app to log in"
+  # - signal:
+  #     botname: "@signalbot:relaysms.me"
+  #     username_template: "signal_{{.}}"
+  #     display_username_template: "{{.}} (Signal)"
+  #     cmd:
+  #       login: "!signal login"
+  #       failed: "Login failed: too many QR code refreshes"
+  #       success: "Successfully logged in as %s / %s"
+  #       cancel: "!signal cancel"
+  #       devices: "!signal list-logins"
+  #       ongoing: "Scan the QR code on your Signal app to log in"

@@ -1,0 +1,73 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install libolm dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libolm-dev
+
+      - name: Build binary
+        run: |
+          make build
+
+      - name: Stop service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            mkdir -p /opt/matrix-client
+            systemctl stop matrix-client
+
+      - name: Upload binary via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "bin"
+          target: "/opt/matrix-client/"
+          overwrite: true
+
+      - name: Clone/Update code
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            if [ -d ~/projects/Client ]; then
+              cd ~/projects/Client && git pull
+            else
+              git clone https://github.com/${{ github.repository }}.git ~/projects/Client
+            fi
+
+      - name: Start service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            systemctl start matrix-client
+            systemctl is-active matrix-client

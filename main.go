@@ -1,93 +1,91 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
-	_ "sherlock/matrix/docs"
-	"sync"
+	"runtime/debug"
+	"strconv"
 
-	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
+	"github.com/gin-gonic/gin"
+	"github.com/shortmesh/core/apis"
+	"github.com/shortmesh/core/cmd"
+	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/docs"
+	_ "github.com/shortmesh/core/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	// "maunium.net/go/mautrix/id"
 )
 
-type User struct {
-	Username         string `yaml:"username"`
-	Password         string `yaml:"password"`
-	AccessToken      string `yaml:"access_token"`
-	RecoveryKey      string `yaml:"recovery_key"`
-	DeviceId         string `yaml:"device_id"`
-	HomeServer       string `yaml:"homeserver"`
-	HomeServerDomain string `yaml:"homeserver_domain"`
-}
-
+// @title ShortMesh - Client API
+// @version 1.0
 func main() {
-	// ks.Init()
-	conf, err := cfg.getConf()
+	var programLevel slog.LevelVar
+	programLevel.Set(slog.LevelDebug) // Set initial level to Debug
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: &programLevel, // Use the LevelVar
+	})
+	slog.SetDefault(slog.New(handler))
 
-	user := User{
-		Username:         conf.User.Username,
-		AccessToken:      conf.User.AccessToken,
-		RecoveryKey:      conf.User.RecoveryKey,
-		HomeServer:       conf.HomeServer,
-		HomeServerDomain: conf.HomeServerDomain,
-	}
+	apis.SessionsCacheInit()
 
-	client, err := mautrix.NewClient(
-		user.HomeServer,
-		id.NewUserID(user.Username, user.HomeServerDomain),
-		user.AccessToken,
-	)
-	client.DeviceID = id.DeviceID(conf.User.DeviceId)
-
-	mc := MatrixClient{
-		Client: client,
-	}
-
-	if len(os.Args) > 2 && os.Args[2] == "--login" {
-		fmt.Println("[+] Login commencing...")
-		password := conf.User.Password
-
-		if _, err := mc.Login(password); err != nil {
-			panic(err)
-		}
-
-		return
-	}
-
-	if err != nil {
-		panic(err)
-	}
-
-	go SyncUser(&mc, user)
+	go cmd.SyncUsers()
+	go RestAPIRoutines()
+	// go rabbitmq.RabbitMQReceiver()
 
 	select {}
 }
 
-func SyncUser(mc *MatrixClient, user User) {
-	var wg sync.WaitGroup
-	wg.Add(1)
+func RestAPIRoutines() {
+	router := gin.Default()
 
-	ch := make(chan *event.Event)
+	// Add CORS middleware
+	router.Use(apis.SecureMiddleware())
 
-	go func() {
-		for {
-			evt := <-ch
-			// fmt.Printf("%s\n", evt.Content.AsEncrypted().Ciphertext)
-			json, err := json.MarshalIndent(evt, "", "")
-
-			if err != nil {
-				panic(err)
-			}
-			fmt.Printf("%s\n", json)
-			// fmt.Printf("%s\n", evt.Type)
-		}
-	}()
-
-	err := mc.Sync(ch, user.RecoveryKey)
+	cfg, err := configs.GetConf()
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return
+	}
+
+	apiVersion := cfg.ApiVersion
+	host := cfg.Server.Host
+	port := cfg.Server.Port
+
+	docs.SwaggerInfo.Title = "ShortMesh - Client API"
+	docs.SwaggerInfo.Version = strconv.Itoa(apiVersion)
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%s", host, port)
+	docs.SwaggerInfo.BasePath = fmt.Sprintf("/api/v%d", apiVersion)
+
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
+
+	router.POST(fmt.Sprintf("/api/v%d/login", apiVersion), apis.Login)
+	router.POST(fmt.Sprintf("/api/v%d/store", apiVersion), apis.Store)
+	router.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
+	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
+
+	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
+	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.Delete)
+
+	tlsCert := cfg.Server.Tls.Crt
+	tlsKey := cfg.Server.Tls.Key
+
+	if tlsCert != "" && tlsKey != "" {
+		err := router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return
+		}
+	} else {
+		err := router.Run(fmt.Sprintf("%s:%s", host, port))
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return
+		}
 	}
 }
