@@ -6,11 +6,36 @@
 - [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
 - [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
 - [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
+
+- Installations
+
+- Bridge setups
+
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
     - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
     - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
+
+## Installation
+
+MacOS (M-series)
+```bash
+brew install libolm
+export LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
+export CPATH="/opt/homebrew/include:$CPATH"
+```
+
+## Bridge setups
+
+Configure self signing in bridge to avoid error:
+> failed to decrypt megolm event: no session with given ID found
+
+bridge.conf file:
+
+```yaml
+encryption > self_sign = true
+```
  
 ## Description
 ShortMesh Client is a Matrix protocol client  that provides messaging capabilities across multiple Matrix bridges. \
