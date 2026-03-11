@@ -1,0 +1,30 @@
+[Unit]
+Description=Matrix Client Service
+After=network.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=matrix-client
+Group=matrix-client
+WorkingDirectory=/opt/matrix-client
+ExecStart=/opt/matrix-client/bin/client
+Restart=on-failure
+RestartSec=5
+
+Environment="XDG_CACHE_HOME=/opt/matrix-client/.cache"
+Environment="GOCACHE=/opt/matrix-client/.cache/go-build"
+Environment="GOMODCACHE=/opt/matrix-client/.cache/go-mod"
+
+; Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/matrix-client
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
