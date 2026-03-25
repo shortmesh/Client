@@ -6,11 +6,8 @@
 - [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
 - [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
 - [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
-
-- Installations
-
-- Bridge setups
-
+- [Installations](https://github.com/shortmesh/Core/blob/master/README.md#installation)
+- [Bridge setups](https://github.com/shortmesh/Core/blob/master/README.md#bridge-setups)
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
