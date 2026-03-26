@@ -50,8 +50,13 @@ def store(username, accessToken, deviceId):
         "access_token" : accessToken, 
         "device_id" : deviceId, 
     }
-    print(payload)
-    response = requests.post(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", "/api/v1/store", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
 
     response.raise_for_status()
 
@@ -117,7 +122,14 @@ def login(username, password):
         "username" : username,
         "password" : password,
     }
-    response = requests.post(url, json=payload)
+
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", "/api/v1/login", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
 
     response.raise_for_status()
 

@@ -303,37 +303,3 @@ func (UserDB *UserDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact str
 
 	return nil, sql.ErrNoRows
 }
-
-func (UserDB *UserDB) fetchIsContact(contact string) (*string, error) {
-	stmt, err := UserDB.connection.Prepare(
-		"select room_id from rooms where contact_name = ?",
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	defer stmt.Close()
-
-	rows, err := stmt.Query(contact)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	if rows.Next() {
-		var roomId string
-
-		err = rows.Scan(&roomId)
-		if err != nil {
-			return nil, err
-		}
-		return &roomId, nil
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, sql.ErrNoRows
-}

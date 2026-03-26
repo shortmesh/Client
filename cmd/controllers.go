@@ -4,6 +4,8 @@ import (
 	// 	"context"
 	// 	"fmt"
 
+	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -204,9 +206,7 @@ func SyncUsers() error {
 }
 
 func (c *Controller) AddDevice(bridgeName string) error {
-	bridge, err := (&bridges.Bridges{
-		Client: c.Client,
-	}).LookupBridgeByName(bridgeName)
+	bridge, err := (&bridges.Bridges{Client: c.Client}).LookupBridgeByName(bridgeName)
 	// log.Printf("Found bridge room: %s\n", bridge.RoomID)
 
 	if err != nil {
@@ -221,6 +221,36 @@ func (c *Controller) AddDevice(bridgeName string) error {
 	return nil
 }
 
+func addBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
+	slog.Debug("Adding bridge", "name", bridgeConf.Name)
+
+	bridge := bridges.Bridges{
+		BridgeConfig: bridgeConf,
+		Client:       client,
+	}
+	roomId, err := bridge.JoinManagementRooms()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	bridge.RoomID = &roomId
+
+	if err := bridge.Clear(); err != nil {
+		return err
+	}
+	slog.Debug("Bridge rooms cleared", "name", bridge.BridgeConfig.BotName)
+
+	if err := bridge.Save(); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	slog.Debug("Room created", "room_id", bridge.RoomID)
+	return nil
+}
+
 func (c *Controller) AddBridges() error {
 	conf, err := configs.GetConf()
 	if err != nil {
@@ -230,30 +260,10 @@ func (c *Controller) AddBridges() error {
 	bridgeConfs := conf.Bridges
 
 	for _, confBridge := range bridgeConfs {
-		slog.Debug("Adding bridge", "name", confBridge.Name)
-
-		bridge := bridges.Bridges{
-			BridgeConfig: confBridge,
-			Client:       c.Client,
-		}
-		roomId, err := bridge.JoinManagementRooms()
+		err := addBridge(c.Client, confBridge)
 		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
 			return err
 		}
-		bridge.RoomID = &roomId
-
-		if err := bridge.Clear(); err != nil {
-			return err
-		}
-		slog.Debug("Bridge rooms cleared", "name", bridge.BridgeConfig.BotName)
-
-		if err := bridge.Save(); err != nil {
-			return err
-		}
-
-		slog.Debug("Room created", "room_id", bridge.RoomID)
 	}
 
 	return nil
@@ -273,9 +283,7 @@ func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (
 	// deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
 	// slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
 
-	bridge, err := (&bridges.Bridges{
-		Client: room.Client,
-	}).LookupBridgeByName(bridgeName)
+	bridge, err := (&bridges.Bridges{Client: room.Client}).LookupBridgeByName(bridgeName)
 	if err != nil {
 		return nil, err
 	}
@@ -376,4 +384,88 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 	}
 
 	return room.ID, nil
+}
+
+func ParseRoomSubroutine(client *mautrix.Client) error {
+	ctx := context.Background()
+	joinedRooms, err := client.JoinedRooms(ctx)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	slog.Debug("User details", "num_rooms", len(joinedRooms.JoinedRooms))
+
+	for _, roomId := range joinedRooms.JoinedRooms {
+		room := rooms.Rooms{
+			Client: client,
+			ID:     &roomId,
+		}
+		members, err := room.GetRoomMembers()
+
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		}
+		slog.Debug("User details", "members_in_room", len(members))
+
+		isContactRoom, err := rooms.IsContactRoom(client, members)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		}
+
+		if isContactRoom {
+			err := rooms.ProcessIsContactRoom(client, room, members)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+			}
+			return nil
+		}
+	}
+
+	err = repairBridges(client)
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	return nil
+}
+
+func repairBridges(client *mautrix.Client) error {
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	bridge := bridges.Bridges{
+		Client: client,
+	}
+
+	for _, bridgeConf := range conf.Bridges {
+		slog.Debug("Checking bridge", "name", bridgeConf.Name)
+		bridge.BridgeConfig = bridgeConf
+		bridge, err := bridge.LookupBridgeByName(bridgeConf.Name)
+		if err != nil && err != sql.ErrNoRows {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+
+		if bridge == nil {
+			slog.Debug("repairing bridge", "name", bridgeConf.Name)
+			err = addBridge(client, bridgeConf)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return err
+			}
+		}
+	}
+
+	return nil
 }

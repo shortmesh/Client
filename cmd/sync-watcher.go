@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/shortmesh/core/bridges"
-	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -62,7 +61,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 
 func Sync(user users.Users) error {
 	slog.Debug("Syncing user", "UserID", user.Client.UserID.String(), "DeviceID", user.Client.DeviceID)
-	err := rooms.ParseRoomSubroutine(user.Client)
+	err := ParseRoomSubroutine(user.Client)
 	if err != nil {
 		slog.Error(err.Error())
 		return err

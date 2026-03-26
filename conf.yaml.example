@@ -19,7 +19,7 @@ rabbitmq:
     key: ""
 bridges:
   - name: wa 
-    botname: "@whatsappbot:matrix.sherlockwisdom.com"
+    botname: "@whatsappbot:matrix.example.com"
     username_template: "whatsapp_{{.}}"
     display_username_template: "{{.}} (WA)"
     cmd:
@@ -34,14 +34,18 @@ bridges:
       login-qr-filename: "qr.png"
       cancel: "cancel"
 
-  # - signal:
-  #     botname: "@signalbot:relaysms.me"
-  #     username_template: "signal_{{.}}"
-  #     display_username_template: "{{.}} (Signal)"
-  #     cmd:
-  #       login: "!signal login"
-  #       failed: "Login failed: too many QR code refreshes"
-  #       success: "Successfully logged in as %s / %s"
-  #       cancel: "!signal cancel"
-  #       devices: "!signal list-logins"
-  #       ongoing: "Scan the QR code on your Signal app to log in"
+  - name: signal
+    botname: "@signalbot:matrix.example.com"
+    username_template: "signal_{{.}}"
+    display_username_template: "{{.}} (Signal)"
+    cmd:
+      login: "login"
+      list-logins: "* `%s` (+%s) - `CONNECTED`"
+      devices: "list-logins"
+      logout: "logout %s"
+      management: "set-management-room"
+      success: "Successfully logged in as %s"
+      login-qr: "Scan the QR code with the Signal mobile app to log in"
+      login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
+      login-qr-filename: "qr.png"
+      cancel: "cancel"

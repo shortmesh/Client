@@ -6,7 +6,6 @@ import (
 	"runtime/debug"
 
 	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/devices"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
@@ -51,94 +50,6 @@ func GetUserDB(client *mautrix.Client) (*UserDB, error) {
 	}
 
 	return &usersDb, err
-}
-
-func GetTypeUser(client *mautrix.Client, userId id.UserID) (UserType, error) {
-	conf, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return -1, err
-	}
-
-	if userId == client.UserID {
-		return User, nil
-	}
-
-	for _, bridgeConf := range conf.Bridges {
-		if userId == id.UserID(bridgeConf.BotName) {
-			return BridgeBot, nil
-		}
-	}
-
-	isDevice, err := devices.IsDevice(client, userId.String())
-
-	if err != nil {
-		return -1, err
-	}
-
-	if isDevice {
-		return Device, nil
-	}
-
-	isContact, err := isContact(client, userId.String())
-	if err != nil {
-		return -1, err
-	}
-
-	if isContact {
-		return Contact, nil
-	}
-
-	return -1, nil
-}
-
-func isContact(
-	client *mautrix.Client,
-	contact string,
-) (bool, error) {
-	usersDb, err := GetUserDB(client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	roomId, err := usersDb.fetchIsContact(contact)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			cfg, err := configs.GetConf()
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return false, err
-			}
-
-			for _, bridgeConf := range cfg.Bridges {
-				matched, err := cfg.CheckUserBridgeBotTemplate(bridgeConf.Name, contact)
-				if err != nil {
-					slog.Error(err.Error())
-					debug.PrintStack()
-					return false, err
-				}
-
-				if matched {
-					return true, err
-				}
-			}
-			return false, nil
-		}
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	if roomId == nil {
-		return false, nil
-	}
-
-	return true, nil
 }
 
 func (u *Users) Save() error {
