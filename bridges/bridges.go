@@ -2,7 +2,7 @@ package bridges
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"log"
 	"log/slog"
 	"regexp"
@@ -336,7 +336,7 @@ func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
 	}
 
 	if len(*bridgeRoomIds) < 1 {
-		return nil, errors.New("No bridges found!")
+		return nil, sql.ErrNoRows
 	}
 
 	roomId := id.RoomID((*bridgeRoomIds)[0])

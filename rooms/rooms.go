@@ -110,25 +110,6 @@ func (r *Rooms) GetPowerLevelsEvents() (int, error) {
 	return powerLevels.Events[event.EventMessage.String()], nil
 }
 
-func (r *Rooms) GetInvites(
-	evt *event.Event,
-) error {
-	_, err := r.Client.JoinRoomByID(context.Background(), *r.ID)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	err = ParseRoomSubroutine(r.Client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	return nil
-}
-
 func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomID, error) {
 	resp, err := r.Client.CreateRoom(context.Background(), &mautrix.ReqCreateRoom{
 		Invite:   invites,
@@ -218,7 +199,7 @@ func (r *Rooms) Save(
 	return nil
 }
 
-func isContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
+func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 	if len(members) == 4 {
 		// ? contact communication room?
 		// ? client, bridgeBot, device, some contact
@@ -255,7 +236,6 @@ func isContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 }
 
 func isBridgeBotRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
-
 	if len(members) == 2 {
 		isUser := false
 		isBridgeBot := false
@@ -281,7 +261,7 @@ func isBridgeBotRoom(client *mautrix.Client, members []id.UserID) (bool, error) 
 	return false, nil
 }
 
-func processIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserID) error {
+func ProcessIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserID) error {
 	var bridgeName string
 	var contactName id.UserID
 	var deviceName id.UserID
@@ -366,49 +346,6 @@ func processIsBotRoom(client *mautrix.Client, room Rooms, members []id.UserID) e
 	slog.Debug("Room parsed and saved bot room", "BridgeName", bridgeName, "deviceName", deviceName)
 	return nil
 
-}
-
-func ParseRoomSubroutine(client *mautrix.Client) error {
-	ctx := context.Background()
-	rooms, err := client.JoinedRooms(ctx)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	slog.Debug("User details", "num_rooms", len(rooms.JoinedRooms))
-
-	for _, roomId := range rooms.JoinedRooms {
-		room := Rooms{
-			Client: client,
-			ID:     &roomId,
-		}
-		members, err := room.GetRoomMembers()
-
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-		slog.Debug("User details", "members_in_room", len(members))
-
-		isContactRoom, err := isContactRoom(client, members)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-
-		if isContactRoom {
-			err := processIsContactRoom(client, room, members)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-			}
-			return nil
-		}
-	}
-
-	return nil
 }
 
 func (r *Rooms) SendMessage(message string) error {
