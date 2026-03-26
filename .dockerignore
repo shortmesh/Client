@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+.github
+
+# Configuration files
+conf.yaml
+!conf.yaml.example
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+testdata/
+test/
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories
+db/
+downloads/
+
+# Service files
+*.service
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Notes
+NOTES.md
