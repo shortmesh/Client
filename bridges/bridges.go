@@ -48,6 +48,7 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 	}
 
 	var bridgeBotContact id.UserID
+	slog.Debug("Reverse for bridgebot", "members", members)
 	for _, member := range members {
 		if member != client.UserID {
 			bridgeBotContact = member
@@ -62,14 +63,16 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 		return nil, err
 	}
 
+	userType, err := rooms.GetTypeUser(client, bridgeBotContact)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
 	for _, bridgeConf := range conf.Bridges {
-		userType, err := users.GetTypeUser(client, bridgeBotContact)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		if userType == users.BridgeBot {
+		slog.Debug("reverse search", "searching", bridgeBotContact)
+		if userType == users.BridgeBot && bridgeBotContact.String() == bridgeConf.BotName {
 			roomId := id.RoomID(roomId)
 			return (&Bridges{
 				BridgeConfig: bridgeConf,
@@ -224,11 +227,18 @@ func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
 - BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
 when list-devices is ran to delete devices which are deactivated
 */
-func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *event.Event) (*Bridges, error) {
-	bridge, err := reverseForBridgeBot(client, roomId)
+func processIncomingBotMessage(client *mautrix.Client, evt *event.Event) (*Bridges, error) {
+	bridge, err := reverseForBridgeBot(client, evt.RoomID)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
 	if bridge == nil {
 		return nil, nil
 	}
+	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -238,7 +248,7 @@ func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *ev
 
 	message := evt.Content.AsMessage().Body
 
-	isManagementRoom, err := rooms.IsManagementRoom(client, roomId, bridge.BridgeConfig.BotName)
+	isManagementRoom, err := rooms.IsManagementRoom(client, evt.RoomID, bridge.BridgeConfig.BotName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -248,7 +258,7 @@ func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *ev
 	if isManagementRoom {
 		slog.Debug(
 			"Management room",
-			"roomId", roomId.String(),
+			"roomId", evt.RoomID.String(),
 			"bridge", bridge.BridgeConfig.Name,
 			"message", message,
 		)
@@ -290,7 +300,7 @@ func processIncomingBotMessage(client *mautrix.Client, roomId id.RoomID, evt *ev
 }
 
 func (b *Bridges) processIncomingMessages(evt *event.Event) error {
-	userType, err := users.GetTypeUser(b.Client, evt.Sender)
+	userType, err := rooms.GetTypeUser(b.Client, evt.Sender)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -298,7 +308,7 @@ func (b *Bridges) processIncomingMessages(evt *event.Event) error {
 	}
 
 	if userType == users.BridgeBot {
-		_, err := processIncomingBotMessage(b.Client, evt.RoomID, evt)
+		_, err := processIncomingBotMessage(b.Client, evt)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()

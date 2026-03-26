@@ -2,10 +2,12 @@ package rooms
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"runtime/debug"
 
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -225,7 +227,7 @@ func isContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 		isDevice := false
 		isContact := false
 		for _, member := range members {
-			userType, err := users.GetTypeUser(client, member)
+			userType, err := GetTypeUser(client, member)
 			if err != nil {
 				return false, err
 			}
@@ -258,7 +260,7 @@ func isBridgeBotRoom(client *mautrix.Client, members []id.UserID) (bool, error) 
 		isUser := false
 		isBridgeBot := false
 		for _, member := range members {
-			userType, err := users.GetTypeUser(client, member)
+			userType, err := GetTypeUser(client, member)
 			if err != nil {
 				slog.Error(err.Error())
 				debug.PrintStack()
@@ -284,7 +286,7 @@ func processIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserI
 	var contactName id.UserID
 	var deviceName id.UserID
 	for _, member := range members {
-		userType, err := users.GetTypeUser(client, member)
+		userType, err := GetTypeUser(client, member)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -328,7 +330,7 @@ func processIsBotRoom(client *mautrix.Client, room Rooms, members []id.UserID) e
 	var bridgeName string
 	var deviceName id.UserID
 	for _, member := range members {
-		userType, err := users.GetTypeUser(client, member)
+		userType, err := GetTypeUser(client, member)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -423,4 +425,92 @@ func (r *Rooms) SendMessage(message string) error {
 	}
 
 	return nil
+}
+
+func GetTypeUser(client *mautrix.Client, userId id.UserID) (users.UserType, error) {
+	conf, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return -1, err
+	}
+
+	if userId == client.UserID {
+		return users.User, nil
+	}
+
+	for _, bridgeConf := range conf.Bridges {
+		if userId == id.UserID(bridgeConf.BotName) {
+			return users.BridgeBot, nil
+		}
+	}
+
+	isDevice, err := devices.IsDevice(client, userId.String())
+
+	if err != nil {
+		return -1, err
+	}
+
+	if isDevice {
+		return users.Device, nil
+	}
+
+	isContact, err := isContact(client, userId.String())
+	if err != nil {
+		return -1, err
+	}
+
+	if isContact {
+		return users.Contact, nil
+	}
+
+	return -1, nil
+}
+
+func isContact(
+	client *mautrix.Client,
+	contact string,
+) (bool, error) {
+	roomDb, err := GetRoomDb(client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	roomId, err := roomDb.fetchIsContact(contact)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			cfg, err := configs.GetConf()
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return false, err
+			}
+
+			for _, bridgeConf := range cfg.Bridges {
+				matched, err := cfg.CheckUserBridgeBotTemplate(bridgeConf.Name, contact)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return false, err
+				}
+
+				if matched {
+					return true, err
+				}
+			}
+			return false, nil
+		}
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	if roomId == nil {
+		return false, nil
+	}
+
+	return true, nil
 }
