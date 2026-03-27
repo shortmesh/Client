@@ -22,11 +22,13 @@ bridges:
     botname: "@whatsappbot:matrix.example.com"
     username_template: "whatsapp_{{.}}"
     display_username_template: "{{.}} (WA)"
+    bridge_name_is_contacts_name: false
     cmd:
       login: "login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
+      start-conversation: "start-chat %s %s"
       management: "!wa set-management-room"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the WhatsApp mobile app to log in"
@@ -38,11 +40,13 @@ bridges:
     botname: "@signalbot:matrix.example.com"
     username_template: "signal_{{.}}"
     display_username_template: "{{.}} (Signal)"
+    bridge_name_is_contacts_name: true
     cmd:
       login: "login"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
+      start-conversation: "start-chat %s %s"
       management: "set-management-room"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the Signal mobile app to log in"

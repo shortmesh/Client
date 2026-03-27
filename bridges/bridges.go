@@ -240,12 +240,6 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event) (*Bridg
 	}
 	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name)
 
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
 	message := evt.Content.AsMessage().Body
 
 	isManagementRoom, err := rooms.IsManagementRoom(client, evt.RoomID, bridge.BridgeConfig.BotName)
@@ -322,8 +316,8 @@ func (b *Bridges) processIncomingMessages(evt *event.Event) error {
 	return nil
 }
 
-func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
-	roomsDb, err := rooms.GetRoomDb(b.Client)
+func LookupBridgeByName(client *mautrix.Client, name string) (*Bridges, error) {
+	roomsDb, err := rooms.GetRoomDb(client)
 
 	if err != nil {
 		log.Println("Error initializing client db:", err)
@@ -343,7 +337,7 @@ func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
 	bridge := Bridges{
 		RoomID: &roomId,
 	}
-	bridge.Client = b.Client
+	bridge.Client = client
 
 	conf, err := configs.GetConf()
 	if err != nil {
@@ -390,6 +384,20 @@ func (b *Bridges) LookupBridgeByRoomId(roomId string) (*Bridges, error) {
 			Name: bridgeName,
 		},
 	}), nil
+}
+
+func (b *Bridges) StartConversation(deviceId, contact string) error {
+	query := utils.ReplacePlaceholders(b.BridgeConfig.Cmd["start-conversation"], deviceId, contact)
+	slog.Debug("Bridge starting conversation", "contact", contact)
+	err := b.queryCommand(query)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
 }
 
 func (b *Bridges) queryCommand(query string) error {

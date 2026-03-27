@@ -74,3 +74,11 @@ func DeleteFilesWithPattern(dirPath, pattern string) error {
 
 	return nil
 }
+
+func ReplacePlaceholders(format string, values ...string) string {
+	result := format
+	for _, v := range values {
+		result = strings.Replace(result, "%s", v, 1)
+	}
+	return result
+}

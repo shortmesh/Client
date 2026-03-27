@@ -36,7 +36,13 @@ def send_message(username, platformName, deviceId, contact, message):
         "contact" : contact, 
         "text" : message, 
     }
-    response = requests.post(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", f"/api/v1/devices/{deviceId}/message", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
 
     response.raise_for_status()
 

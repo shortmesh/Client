@@ -109,7 +109,7 @@ func Sync(user users.Users) error {
 		}
 	}()
 
-	err = mc.Sync(ch)
+	err = mc.Sync(user, ch)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

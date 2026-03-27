@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -25,6 +26,8 @@ import (
 type Controller struct {
 	Client *mautrix.Client
 }
+
+var dbChangeWatchers = make(map[string]func() (bool, error))
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
 	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
@@ -139,13 +142,20 @@ func clientsDbWatcher() error {
 				if !ok {
 					return
 				}
-				if event.Op == fsnotify.Create {
-					slog.Debug("Client Watcher", "created file:", event.Name)
-					go syncAll()
+				if event.Op == fsnotify.Create || event.Op == fsnotify.Remove {
+					// slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
+					if strings.HasSuffix(event.Name, ".db") {
+						go syncAll()
+					}
 				}
-				if event.Op == fsnotify.Remove {
-					slog.Debug("Client Watcher", "removed file:", event.Name)
-					go syncAll()
+				if event.Op == fsnotify.Write {
+					if strings.HasSuffix(event.Name, ".db") {
+						slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
+						for key, callback := range dbChangeWatchers {
+							slog.Debug("Client Watcher Iterating", "name", key)
+							go callback()
+						}
+					}
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -178,7 +188,7 @@ func syncAll() error {
 		return err
 	}
 
-	slog.Debug("Syncing details", "#users", len(fetchedUsers))
+	slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
 	for _, user := range fetchedUsers {
 		err := syncWatcher.Add(user)
@@ -206,7 +216,7 @@ func SyncUsers() error {
 }
 
 func (c *Controller) AddDevice(bridgeName string) error {
-	bridge, err := (&bridges.Bridges{Client: c.Client}).LookupBridgeByName(bridgeName)
+	bridge, err := bridges.LookupBridgeByName(c.Client, bridgeName)
 	// log.Printf("Found bridge room: %s\n", bridge.RoomID)
 
 	if err != nil {
@@ -270,56 +280,6 @@ func (c *Controller) AddBridges() error {
 
 }
 
-// !Danger if room already exist, this won't fail but would create a failed room
-// !Have something that records all existing rooms into a db at start
-func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
-	// cfg, err := configs.GetConf()
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	debug.PrintStack()
-	// 	return nil, err
-	// }
-	// contactUsername, err := cfg.FormatUsername(bridgeName, contact)
-	// deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
-	// slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
-
-	bridge, err := (&bridges.Bridges{Client: room.Client}).LookupBridgeByName(bridgeName)
-	if err != nil {
-		return nil, err
-	}
-
-	botUsername := bridge.BridgeConfig.BotName
-	slog.Debug("Bridges", "Botusername", botUsername)
-
-	roomId, err := room.CreateRoom([]id.UserID{
-		id.UserID(contact),
-		id.UserID(deviceId),
-		id.UserID(botUsername),
-	}, false)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	err = room.Save(
-		bridgeName,
-		contact,
-		deviceId,
-		false,
-	)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	return &roomId, nil
-
-}
-
 func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
 	// contact = strings.ReplaceAll(contact, "+", "")
 	cfg, err := configs.GetConf()
@@ -362,18 +322,66 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		ID:     nil,
 	}
 
+	waitDb := syncWatcher.wg
+
 	if roomIdStr == nil {
-		slog.Debug("Creating contact room!")
-		_roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
+		// slog.Debug("Creating contact room!")
+		// _roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// 	debug.PrintStack()
+		// 	return nil, err
+		// }
+		// roomId = *_roomId
+		waitDb.Add(1)
+
+		callback := func() (bool, error) {
+			return func(wg *sync.WaitGroup) (bool, error) {
+				roomIdStr, err := users.FetchMessageContactOnly(
+					c.Client,
+					bridgeName,
+					contactUsername,
+				)
+
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return false, err
+				}
+
+				slog.Debug("Db watcher called", "reason", "possibly new contact room created", "roomId", roomIdStr)
+
+				if roomIdStr == "" {
+					return false, nil
+				}
+
+				roomId = id.RoomID(roomIdStr)
+
+				wg.Done()
+				return true, nil
+			}(waitDb)
+		}
+
+		dbChangeWatchers[contact] = callback
+
+		bridge, err := bridges.LookupBridgeByName(c.Client, bridgeName)
 		if err != nil {
 			slog.Error(err.Error())
-			debug.PrintStack()
 			return nil, err
 		}
-		roomId = *_roomId
+
+		err = bridge.StartConversation(deviceId, contact)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		waitDb.Wait()
+		delete(dbChangeWatchers, contact)
 	} else {
 		roomId = id.RoomID(*roomIdStr)
 	}
+
 	room.ID = &roomId
 
 	err = room.SendMessage(message)
@@ -422,7 +430,6 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 				slog.Error(err.Error())
 				debug.PrintStack()
 			}
-			return nil
 		}
 	}
 
@@ -442,14 +449,9 @@ func repairBridges(client *mautrix.Client) error {
 		return err
 	}
 
-	bridge := bridges.Bridges{
-		Client: client,
-	}
-
 	for _, bridgeConf := range conf.Bridges {
 		slog.Debug("Checking bridge", "name", bridgeConf.Name)
-		bridge.BridgeConfig = bridgeConf
-		bridge, err := bridge.LookupBridgeByName(bridgeConf.Name)
+		bridge, err := bridges.LookupBridgeByName(client, bridgeConf.Name)
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -468,4 +470,54 @@ func repairBridges(client *mautrix.Client) error {
 	}
 
 	return nil
+}
+
+// !Danger if room already exist, this won't fail but would create a failed room
+// !Have something that records all existing rooms into a db at start
+func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
+	// cfg, err := configs.GetConf()
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	debug.PrintStack()
+	// 	return nil, err
+	// }
+	// contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+	// deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
+	// slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
+
+	bridge, err := bridges.LookupBridgeByName(room.Client, bridgeName)
+	if err != nil {
+		return nil, err
+	}
+
+	botUsername := bridge.BridgeConfig.BotName
+	slog.Debug("Bridges", "Botusername", botUsername)
+
+	roomId, err := room.CreateRoom([]id.UserID{
+		id.UserID(contact),
+		id.UserID(deviceId),
+		id.UserID(botUsername),
+	}, false)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	err = room.Save(
+		bridgeName,
+		contact,
+		deviceId,
+		false,
+	)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return &roomId, nil
+
 }

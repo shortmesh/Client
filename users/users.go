@@ -85,6 +85,37 @@ func (u *Users) Save() error {
 	return nil
 }
 
+func FetchMessageContactOnly(
+	client *mautrix.Client,
+	bridgeName,
+	contact string,
+) (string, error) {
+	usersDb, err := GetUserDB(client)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	roomId, err := usersDb.FetchDeviceBridgeContactOnly(
+		bridgeName,
+		contact,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+
+		}
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	return roomId, nil
+}
+
 func FetchMessageContact(
 	client *mautrix.Client,
 	deviceId,

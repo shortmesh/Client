@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 
 	"github.com/shortmesh/core/rooms"
+	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
@@ -75,7 +76,7 @@ func SetupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.
 	return helper, nil
 }
 
-func (m *MatrixClient) Sync(ch chan *event.Event) error {
+func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 	syncer := mautrix.NewDefaultSyncer()
 	m.Client.Syncer = syncer
 	machine := m.CryptoHelper.Machine()
@@ -107,6 +108,14 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 				slog.Error(err.Error())
 			}
 		}
+		// else if evt.Content.AsMember().Membership == event.MembershipJoin {
+		// 	slog.Debug("Sync event", "type", "new user membership")
+		// 	if evt.Content.AsMember().
+		// 	if err != nil {
+		// 		slog.Error(err.Error())
+		// 		debug.PrintStack()
+		// 	}
+		// }
 	})
 
 	if err := m.Client.Sync(); err != nil {

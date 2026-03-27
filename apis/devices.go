@@ -164,7 +164,7 @@ func AddDevices(c *gin.Context) {
 	}
 	client.AccessToken = user.Client.AccessToken
 
-	bridge, err := (&bridges.Bridges{Client: client}).LookupBridgeByName(clientAddDevices.PlatformName)
+	bridge, err := bridges.LookupBridgeByName(client, clientAddDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -236,7 +236,7 @@ func RemoveDevices(c *gin.Context) {
 	}
 	// client.AccessToken = user.Client.AccessToken
 
-	bridge, err := (&bridges.Bridges{Client: user.Client}).LookupBridgeByName(clientRemoveDevices.PlatformName)
+	bridge, err := bridges.LookupBridgeByName(client, clientRemoveDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
