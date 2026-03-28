@@ -232,7 +232,6 @@ func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 			isContact = true
 		}
 	}
-	slog.Debug("IsContactRoom", "isUser", isUser, "isBridgeBot", isBridgeBot, "isDevice", isDevice, "isContact", isContact)
 
 	if isUser && isBridgeBot && isDevice && isContact {
 		return true, nil
@@ -281,7 +280,6 @@ func ProcessIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserI
 			break
 		}
 	}
-	slog.Debug("Processing is contact room", "bridge", bridgeName, "isContactName", bridgeNameIsContactsName)
 
 	contactNameStr := contactName.String()
 	if bridgeNameIsContactsName {

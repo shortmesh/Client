@@ -339,14 +339,6 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 
 	var waitDb sync.WaitGroup
 	if roomIdStr == nil {
-		// slog.Debug("Creating contact room!")
-		// _roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
-		// if err != nil {
-		// 	slog.Error(err.Error())
-		// 	debug.PrintStack()
-		// 	return nil, err
-		// }
-		// roomId = *_roomId
 		waitDb.Add(1)
 
 		callback := func() (bool, error) {
