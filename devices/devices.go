@@ -27,6 +27,7 @@ func GetDeviceDB(client *mautrix.Client) (*DeviceDB, error) {
 }
 
 func IsDevice(client *mautrix.Client, deviceId string) (bool, error) {
+	slog.Debug("IsDevice", "deviceId", deviceId)
 	deviceDb, err := GetDeviceDB(client)
 	devices, err := deviceDb.fetchDevice(deviceId)
 	if err != nil {

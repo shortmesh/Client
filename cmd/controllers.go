@@ -27,6 +27,7 @@ type Controller struct {
 	Client *mautrix.Client
 }
 
+var mutex sync.Mutex
 var dbChangeWatchers = make(map[string]func() (bool, error))
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
@@ -150,11 +151,25 @@ func clientsDbWatcher() error {
 				}
 				if event.Op == fsnotify.Write {
 					if strings.HasSuffix(event.Name, ".db") {
+						mutex.Lock()
 						slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
+
+						var deleteCache []string
 						for key, callback := range dbChangeWatchers {
 							slog.Debug("Client Watcher Iterating", "name", key)
-							go callback()
+							ok, err := callback()
+							if err != nil {
+								slog.Error(err.Error())
+								debug.PrintStack()
+							}
+							if ok {
+								deleteCache = append(deleteCache, key)
+							}
 						}
+						for _, key := range deleteCache {
+							delete(dbChangeWatchers, key)
+						}
+						mutex.Unlock()
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -322,8 +337,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		ID:     nil,
 	}
 
-	waitDb := syncWatcher.wg
-
+	var waitDb sync.WaitGroup
 	if roomIdStr == nil {
 		// slog.Debug("Creating contact room!")
 		// _roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
@@ -349,7 +363,10 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 					return false, err
 				}
 
-				slog.Debug("Db watcher called", "reason", "possibly new contact room created", "roomId", roomIdStr)
+				slog.Debug("Db watcher called", "reason",
+					"possibly new contact room created",
+					"roomId", roomIdStr,
+				)
 
 				if roomIdStr == "" {
 					return false, nil
@@ -359,7 +376,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 
 				wg.Done()
 				return true, nil
-			}(waitDb)
+			}(&waitDb)
 		}
 
 		dbChangeWatchers[contact] = callback
@@ -377,7 +394,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 		}
 
 		waitDb.Wait()
-		delete(dbChangeWatchers, contact)
+		slog.Debug("SendMessage", "status", "callback should be finished")
 	} else {
 		roomId = id.RoomID(*roomIdStr)
 	}
@@ -416,7 +433,7 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 			slog.Error(err.Error())
 			debug.PrintStack()
 		}
-		slog.Debug("User details", "members_in_room", len(members))
+		// slog.Debug("User details", "members_in_room", len(members))
 
 		isContactRoom, err := rooms.IsContactRoom(client, members)
 		if err != nil {
@@ -425,6 +442,7 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 		}
 
 		if isContactRoom {
+			slog.Debug("Room details", "room", roomId, "isContactRoom", isContactRoom)
 			err := rooms.ProcessIsContactRoom(client, room, members)
 			if err != nil {
 				slog.Error(err.Error())
@@ -442,6 +460,7 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 }
 
 func repairBridges(client *mautrix.Client) error {
+	slog.Debug("[+] Repairing bridges...")
 	conf, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
@@ -450,7 +469,7 @@ func repairBridges(client *mautrix.Client) error {
 	}
 
 	for _, bridgeConf := range conf.Bridges {
-		slog.Debug("Checking bridge", "name", bridgeConf.Name)
+		// slog.Debug("Checking bridge", "name", bridgeConf.Name)
 		bridge, err := bridges.LookupBridgeByName(client, bridgeConf.Name)
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())

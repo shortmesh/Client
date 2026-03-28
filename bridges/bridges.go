@@ -48,7 +48,6 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 	}
 
 	var bridgeBotContact id.UserID
-	slog.Debug("Reverse for bridgebot", "members", members)
 	for _, member := range members {
 		if member != client.UserID {
 			bridgeBotContact = member
@@ -71,7 +70,6 @@ func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, er
 	}
 
 	for _, bridgeConf := range conf.Bridges {
-		slog.Debug("reverse search", "searching", bridgeBotContact)
 		if userType == users.BridgeBot && bridgeBotContact.String() == bridgeConf.BotName {
 			roomId := id.RoomID(roomId)
 			return (&Bridges{
@@ -238,7 +236,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event) (*Bridg
 	if bridge == nil {
 		return nil, nil
 	}
-	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name)
+	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name, "msg", evt.Content.AsMessage().Body)
 
 	message := evt.Content.AsMessage().Body
 

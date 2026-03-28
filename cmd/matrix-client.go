@@ -12,6 +12,7 @@ import (
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 type MatrixClient struct {
@@ -107,15 +108,16 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 			if err != nil {
 				slog.Error(err.Error())
 			}
+		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
+			memberId := id.UserID(*evt.StateKey)
+			if memberId == m.Client.UserID {
+				slog.Debug("Event", "type", "joined room")
+				err := ParseRoomSubroutine(m.Client)
+				if err != nil {
+					slog.Error(err.Error())
+				}
+			}
 		}
-		// else if evt.Content.AsMember().Membership == event.MembershipJoin {
-		// 	slog.Debug("Sync event", "type", "new user membership")
-		// 	if evt.Content.AsMember().
-		// 	if err != nil {
-		// 		slog.Error(err.Error())
-		// 		debug.PrintStack()
-		// 	}
-		// }
 	})
 
 	if err := m.Client.Sync(); err != nil {
@@ -200,11 +202,5 @@ func getInvites(client *mautrix.Client, evt *event.Event) error {
 		return err
 	}
 
-	err = ParseRoomSubroutine(client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
 	return nil
 }

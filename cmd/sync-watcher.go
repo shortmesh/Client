@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"log/slog"
 	"runtime/debug"
 	"slices"
@@ -89,14 +88,13 @@ func Sync(user users.Users) error {
 				continue
 			}
 
-			json, err := json.MarshalIndent(evt, "", "")
-
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				continue
-			}
-			slog.Debug("Incoming message", "message", json)
+			// json, err := json.MarshalIndent(evt, "", "")
+			// if err != nil {
+			// 	slog.Error(err.Error())
+			// 	debug.PrintStack()
+			// 	continue
+			// }
+			// slog.Debug("Incoming message", "message", json)
 
 			// Process incoming from bridges
 			go func() {
