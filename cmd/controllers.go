@@ -28,7 +28,10 @@ type Controller struct {
 }
 
 var mutex sync.Mutex
+var syncMutex sync.Mutex
+
 var dbChangeWatchers = make(map[string]func() (bool, error))
+var syncQueue = make(map[string]bool)
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
 	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
@@ -66,10 +69,10 @@ func (c *Controller) Store() error {
 		return err
 	}
 
-	err = c.AddBridges()
-	if err != nil {
-		return err
-	}
+	// err = c.AddBridges()
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -143,14 +146,16 @@ func clientsDbWatcher() error {
 				if !ok {
 					return
 				}
-				if event.Op == fsnotify.Create || event.Op == fsnotify.Remove {
-					// slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
-					if strings.HasSuffix(event.Name, ".db") {
-						go syncAll()
-					}
-				}
+				// if event.Op == fsnotify.Create || event.Op == fsnotify.Remove {
+				// 	// slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
+				// 	if strings.HasSuffix(event.Name, ".db") {
+				// 		syncQueue[event.Name] = false
+				// 	}
+				// }
 				if event.Op == fsnotify.Write {
-					if strings.HasSuffix(event.Name, ".db") {
+					if strings.HasSuffix(event.Name, "clients.db") {
+						go syncAll()
+					} else if strings.HasSuffix(event.Name, ".db") {
 						mutex.Lock()
 						slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
 

@@ -2,7 +2,10 @@ package utils
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -81,4 +84,33 @@ func ReplacePlaceholders(format string, values ...string) string {
 		result = strings.Replace(result, "%s", v, 1)
 	}
 	return result
+}
+
+func HashFileSHA256(filePath string) (string, error) {
+	// Open the file.
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	// Ensure the file is closed once the function returns.
+	defer file.Close()
+
+	// Create a new SHA256 hash interface. You can use other algorithms like
+	// md5.New() or sha512.New() in a similar way by importing the respective package.
+	hasher := sha256.New()
+
+	// Use io.Copy to efficiently stream the file data to the hasher.
+	// The hasher implements the io.Writer interface.
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", fmt.Errorf("error hashing file: %w", err)
+	}
+
+	// Get the finalized hash sum as a byte slice. The argument to Sum can be
+	// used to append to an existing byte slice, but passing nil works fine.
+	hashInBytes := hasher.Sum(nil)
+
+	// Convert the byte slice to a hexadecimal string for human-readable output.
+	hashString := hex.EncodeToString(hashInBytes)
+
+	return hashString, nil
 }

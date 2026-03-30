@@ -443,6 +443,7 @@ func (b *Bridges) AddDevice() error {
 }
 
 func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
+	slog.Debug("Bridge", "status", "joining management")
 	_roomId, err := (&rooms.Rooms{
 		Client:   b.Client,
 		IsBridge: true,
@@ -451,7 +452,6 @@ func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
 	}, true)
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return "", err
 	}
 
