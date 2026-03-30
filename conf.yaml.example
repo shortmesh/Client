@@ -64,7 +64,7 @@ bridges:
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
-      management: "!telegram set-management-room"
+      management: "!tg set-management-room"
       start-conversation: "start-chat %s %s"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the Signal mobile app to log in"
