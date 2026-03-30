@@ -46,8 +46,26 @@ bridges:
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
+      management: "!signal set-management-room"
       start-conversation: "start-chat %s %s"
-      management: "set-management-room"
+      success: "Successfully logged in as %s"
+      login-qr: "Scan the QR code with the Signal mobile app to log in"
+      login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
+      login-qr-filename: "qr.png"
+      cancel: "cancel"
+
+  - name: telegram
+    botname: "@telegrambot:matrix.example.com"
+    username_template: "telegram_{{.}}"
+    display_username_template: "{{.}} (Telegram)"
+    bridge_name_is_contacts_name: true
+    cmd:
+      login: "login"
+      list-logins: "* `%s` (+%s) - `CONNECTED`"
+      devices: "list-logins"
+      logout: "logout %s"
+      management: "!telegram set-management-room"
+      start-conversation: "start-chat %s %s"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the Signal mobile app to log in"
       login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
