@@ -4,6 +4,7 @@
 - [Description](https://github.com/shortmesh/Core/blob/master/README.md#description)
 - [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
 - [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
+- [Docker Setup](#docker-setup)
 - [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
 - [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
 
@@ -82,6 +83,62 @@ cp conf.yaml.example conf.yaml
 go mod tidy
 
 go run .
+```
+
+## Docker Setup
+
+### Build and Run
+
+```bash
+# Build
+docker build -t matrix-client .
+
+# Run
+docker run -d --name matrix-client -p 8080:8080 \
+  -v $(pwd)/db:/app/db \
+  -v $(pwd)/downloads:/app/downloads \
+  -v $(pwd)/conf.yaml:/app/conf.yaml \
+  matrix-client
+
+# View logs
+docker logs -f matrix-client
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  matrix-client:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db:/app/db
+      - ./downloads:/app/downloads
+      - ./conf.yaml:/app/conf.yaml
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+    depends_on:
+      - rabbitmq
+```
+
+```bash
+docker-compose up -d
+
+# View logs
+docker-compose logs -f matrix-client
 ```
 
 ## API docs
