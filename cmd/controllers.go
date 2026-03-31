@@ -423,6 +423,26 @@ func parseRoom(client *mautrix.Client, roomId *id.RoomID) error {
 	}
 	// slog.Debug("User details", "members_in_room", len(members))
 
+	ctx := context.Background()
+	for _, member := range members {
+		resp, err := client.GetDisplayName(ctx, member)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		if strings.Contains(resp.DisplayName, "Unknown ") {
+			slog.Debug("Parsing room", "status", "bad room", "cause", member, "display", resp.DisplayName)
+			_, err := client.LeaveRoom(ctx, *roomId)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return err
+			}
+			return nil
+		}
+	}
+
 	isContactRoom, err := rooms.IsContactRoom(client, members)
 	if err != nil {
 		slog.Error(err.Error())
