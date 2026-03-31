@@ -10,7 +10,9 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rabbitmq"
+	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/utils"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 )
 
@@ -152,15 +154,82 @@ func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
 	return matched, nil
 }
 
-// func (b *Bridges) checkIfStartConversation(evt *event.Event) (bool, error) {
-// 	// regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
-// 	// matched, err := regexp.MatchString(regexPattern, message)
-// 	message := evt.Content.AsMessage().Body
-// 	if strings.Contains(message, "Created chat with") {
-// 		b.BridgeConfig.BotName
-// 		return true, nil
-// 	}
+/*
+- BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
+when list-devices is ran to delete devices which are deactivated
+*/
+func processIncomingBotMessage(client *mautrix.Client, evt *event.Event) (*Bridges, error) {
+	bridge, err := reverseForBridgeBot(client, evt.RoomID)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
 
-// 	return false, nil
+	if bridge == nil {
+		return nil, nil
+	}
+	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name, "msg", evt.Content.AsMessage().Body)
 
-// }
+	message := evt.Content.AsMessage().Body
+
+	isManagementRoom, err := rooms.IsManagementRoom(client, evt.RoomID, bridge.BridgeConfig.BotName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	if isManagementRoom {
+		slog.Debug(
+			"Management room",
+			"roomId", evt.RoomID.String(),
+			"bridge", bridge.BridgeConfig.Name,
+			"message", message,
+		)
+		isLoginMatched, err := bridge.checkIfLoginMessage(message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+
+		if isLoginMatched {
+			return nil, err
+		}
+
+		isSuccessMatched, err := bridge.checkIfSuccess(message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		if isSuccessMatched {
+			return nil, err
+		}
+
+		isAddNewDeviceMatched, err := bridge.checkIfMatchDevice(evt)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		if isAddNewDeviceMatched {
+			return nil, err
+		}
+
+		// isStartConversation, err := bridge.checkIfStartConversation(evt)
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// 	debug.PrintStack()
+		// 	return nil, err
+		// }
+		// if isStartConversation {
+		// 	return nil, err
+		// }
+	}
+
+	// TODO: insert other possiblities
+
+	return bridge, nil
+}

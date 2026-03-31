@@ -208,7 +208,7 @@ func syncAll(source string) error {
 		return err
 	}
 
-	slog.Debug("Syncing All", "#users", len(fetchedUsers))
+	// slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
 	for _, user := range fetchedUsers {
 		err := syncWatcher.Add(user)
