@@ -54,6 +54,7 @@ You can modify the conf.yaml file after you make a copy. Place in the following:
 
 ```bash
 cp conf.yaml.example conf.yaml
+swag init
 go mod tidy
 
 go run .
