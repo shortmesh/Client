@@ -226,8 +226,8 @@ func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 			isUser = true
 		case users.BridgeBot:
 			isBridgeBot = true
-		case users.Device:
-			isDevice = true
+		// case users.Device:
+		// 	isDevice = true
 		case users.Contact:
 			isContact = true
 		}
