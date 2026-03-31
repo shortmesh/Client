@@ -60,7 +60,7 @@ bridges:
     display_username_template: "{{.}} (Telegram)"
     bridge_name_is_contacts_name: true
     cmd:
-      login: "login"
+      login: "login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "list-logins"
       logout: "logout %s"
