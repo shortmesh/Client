@@ -2,7 +2,6 @@ package configs
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -126,20 +125,10 @@ func (c *Conf) CheckOngoingPattern(bridgeType string, input string) (bool, error
 	return matched, nil
 }
 
-func (c *Conf) CheckUserBridgeBotTemplate(bridgeType string, username string) (bool, error) {
-	slog.Debug(bridgeType, "username", username)
-	config, ok := c.GetBridgeConfig(bridgeType)
-	if !ok {
-		return false, fmt.Errorf("bridge type %s not found in configuration", bridgeType)
-	}
-
-	if config.UsernameTemplate == "" {
-		return false, fmt.Errorf("username template not found for bridge type %s", bridgeType)
-	}
-
+func CheckUserBridgeBotTemplate(bridgeConfig BridgeConfig, username string) (bool, error) {
 	// Convert template pattern to regex pattern
 	// Replace {{.}} with .* to match any characters
-	regexPattern := strings.ReplaceAll(config.UsernameTemplate, "{{.}}", ".*")
+	regexPattern := strings.ReplaceAll(bridgeConfig.UsernameTemplate, "{{.}}", ".*")
 	// Escape any other special regex characters
 	regexPattern = regexp.QuoteMeta(regexPattern)
 	// Restore the .* pattern

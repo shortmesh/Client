@@ -222,35 +222,12 @@ func (r *RoomsDB) Save(
 }
 
 func (r *RoomsDB) fetchIsContact(contact string) (*string, error) {
-	stmt, err := r.connection.Prepare(
-		"select room_id from rooms where contact_name = ?",
-	)
+	var roomId string
+	err := r.connection.QueryRow(
+		"select room_id from rooms where contact_name = ?", contact,
+	).Scan(&roomId)
 	if err != nil {
-		return nil, err
+		return nil, err // includes sql.ErrNoRows automatically
 	}
-
-	defer stmt.Close()
-
-	rows, err := stmt.Query(contact)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	if rows.Next() {
-		var roomId string
-
-		err = rows.Scan(&roomId)
-		if err != nil {
-			return nil, err
-		}
-		return &roomId, nil
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, sql.ErrNoRows
+	return &roomId, nil
 }

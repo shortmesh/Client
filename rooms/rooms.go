@@ -5,10 +5,8 @@ import (
 	"database/sql"
 	"log/slog"
 	"runtime/debug"
-	"strings"
 
 	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -358,20 +356,20 @@ func GetTypeUser(client *mautrix.Client, userId id.UserID) (users.UserType, erro
 	}
 
 	// extract from template
-	deviceId := ""
-	fUserId := strings.Split(userId.Localpart(), "_")
-	if len(fUserId) > 1 {
-		deviceId = fUserId[1]
-	}
-	isDevice, err := devices.IsDevice(client, deviceId)
+	// deviceId := ""
+	// fUserId := strings.Split(userId.Localpart(), "_")
+	// if len(fUserId) > 1 {
+	// 	deviceId = fUserId[1]
+	// }
+	// isDevice, err := devices.IsDevice(client, deviceId)
 
-	if err != nil {
-		return -1, err
-	}
+	// if err != nil {
+	// 	return -1, err
+	// }
 
-	if isDevice {
-		return users.Device, nil
-	}
+	// if isDevice {
+	// 	return users.Device, nil
+	// }
 
 	isContact, err := isContact(client, userId.String())
 	if err != nil {
@@ -389,6 +387,7 @@ func isContact(
 	client *mautrix.Client,
 	contact string,
 ) (bool, error) {
+	slog.Debug("IsContact?", "contact", contact)
 	roomDb, err := GetRoomDb(client)
 	if err != nil {
 		slog.Error(err.Error())
@@ -399,6 +398,7 @@ func isContact(
 	roomId, err := roomDb.fetchIsContact(contact)
 
 	if err != nil {
+		slog.Debug(err.Error())
 		if err == sql.ErrNoRows {
 			cfg, err := configs.GetConf()
 			if err != nil {
@@ -407,8 +407,9 @@ func isContact(
 				return false, err
 			}
 
+			slog.Debug("IsContact? Error = no rows", "contact", contact)
 			for _, bridgeConf := range cfg.Bridges {
-				matched, err := cfg.CheckUserBridgeBotTemplate(bridgeConf.Name, contact)
+				matched, err := configs.CheckUserBridgeBotTemplate(bridgeConf, contact)
 				if err != nil {
 					slog.Error(err.Error())
 					debug.PrintStack()
