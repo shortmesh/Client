@@ -453,31 +453,31 @@ func ParseRoomSubroutine(client *mautrix.Client, roomId *id.RoomID) error {
 			return err
 		}
 		return nil
+	} else {
+		joinedRooms, err := client.JoinedRooms(ctx)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+
+		slog.Debug(client.UserID.String(), "num_rooms", len(joinedRooms.JoinedRooms))
+
+		for _, roomId := range joinedRooms.JoinedRooms {
+			parseRoom(client, &roomId)
+		}
 	}
 
-	joinedRooms, err := client.JoinedRooms(ctx)
+	err := repairBridges(client)
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return err
-	}
-
-	slog.Debug(client.UserID.String(), "num_rooms", len(joinedRooms.JoinedRooms))
-
-	for _, roomId := range joinedRooms.JoinedRooms {
-		parseRoom(client, &roomId)
-	}
-
-	err = repairBridges(client)
-	if err != nil {
-		slog.Error(err.Error())
 	}
 
 	return nil
 }
 
 func repairBridges(client *mautrix.Client) error {
-	slog.Debug("[+] Repairing bridges...")
 	conf, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
@@ -486,7 +486,6 @@ func repairBridges(client *mautrix.Client) error {
 	}
 
 	for _, bridgeConf := range conf.Bridges {
-		// slog.Debug("Checking bridge", "name", bridgeConf.Name)
 		bridge, err := bridges.LookupBridgeByName(client, bridgeConf.Name)
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())
@@ -495,7 +494,7 @@ func repairBridges(client *mautrix.Client) error {
 		}
 
 		if bridge == nil {
-			slog.Debug("repairing bridge", "name", bridgeConf.Name)
+			slog.Debug("[+] Repairing bridge", "name", bridgeConf.Name)
 			err = addBridge(client, bridgeConf)
 			if err != nil {
 				slog.Error(err.Error())
