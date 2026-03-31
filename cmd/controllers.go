@@ -127,8 +127,7 @@ func (c *Controller) Login(password string) (string, error) {
 	return recoveryKey, nil
 }
 
-func clientsDbWatcher() error {
-	slog.Debug("Client Watcher", "status", "initialized")
+func onDatabaseChangeDaemon() error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		slog.Error(err.Error())
@@ -154,7 +153,7 @@ func clientsDbWatcher() error {
 				// }
 				if event.Op == fsnotify.Write {
 					if strings.HasSuffix(event.Name, "clients.db") {
-						go syncAll()
+						go syncAll("onDatabaseChangeDaemon")
 					} else if strings.HasSuffix(event.Name, ".db") {
 						mutex.Lock()
 						slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
@@ -200,7 +199,8 @@ func clientsDbWatcher() error {
 	return nil
 }
 
-func syncAll() error {
+func syncAll(source string) error {
+	slog.Debug("Syncing all users", "source", source)
 	fetchedUsers, err := users.FetchAllUsers()
 	if err != nil {
 		slog.Error(err.Error())
@@ -220,15 +220,15 @@ func syncAll() error {
 	return nil
 }
 
-func SyncUsers() error {
+func BootupSyncUsers() error {
 	syncWatcher = SyncWatcher{
 		cache:    make([]id.UserID, 0),
 		wg:       &sync.WaitGroup{},
 		syncUser: Sync,
 	}
 
-	syncAll()
-	go clientsDbWatcher()
+	syncAll("SyncUsers")
+	go onDatabaseChangeDaemon()
 
 	syncWatcher.wg.Wait()
 	slog.Debug("Syncing details", "status", "completed and exiting")
@@ -408,8 +408,53 @@ func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) 
 	return room.ID, nil
 }
 
-func ParseRoomSubroutine(client *mautrix.Client) error {
+func parseRoom(client *mautrix.Client, roomId *id.RoomID) error {
+	slog.Debug("Parsing room", "roomId", roomId)
+	room := rooms.Rooms{
+		Client: client,
+		ID:     roomId,
+	}
+	members, err := room.GetRoomMembers()
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	// slog.Debug("User details", "members_in_room", len(members))
+
+	isContactRoom, err := rooms.IsContactRoom(client, members)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if isContactRoom {
+		slog.Debug(client.UserID.String(), "room", roomId, "isContactRoom", isContactRoom)
+		err := rooms.ProcessIsContactRoom(client, room, members)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ParseRoomSubroutine(client *mautrix.Client, roomId *id.RoomID) error {
 	ctx := context.Background()
+
+	if roomId != nil {
+		err := parseRoom(client, roomId)
+		if err != nil {
+			slog.Error(err.Error())
+			return err
+		}
+		return nil
+	}
+
 	joinedRooms, err := client.JoinedRooms(ctx)
 	if err != nil {
 		slog.Error(err.Error())
@@ -417,35 +462,10 @@ func ParseRoomSubroutine(client *mautrix.Client) error {
 		return err
 	}
 
-	slog.Debug("User details", "num_rooms", len(joinedRooms.JoinedRooms))
+	slog.Debug(client.UserID.String(), "num_rooms", len(joinedRooms.JoinedRooms))
 
 	for _, roomId := range joinedRooms.JoinedRooms {
-		room := rooms.Rooms{
-			Client: client,
-			ID:     &roomId,
-		}
-		members, err := room.GetRoomMembers()
-
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-		// slog.Debug("User details", "members_in_room", len(members))
-
-		isContactRoom, err := rooms.IsContactRoom(client, members)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-
-		if isContactRoom {
-			slog.Debug("Room details", "room", roomId, "isContactRoom", isContactRoom)
-			err := rooms.ProcessIsContactRoom(client, room, members)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-			}
-		}
+		parseRoom(client, &roomId)
 	}
 
 	err = repairBridges(client)

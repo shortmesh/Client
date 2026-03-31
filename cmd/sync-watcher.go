@@ -60,7 +60,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 
 func Sync(user users.Users) error {
 	slog.Debug("Syncing user", "UserID", user.Client.UserID.String(), "DeviceID", user.Client.DeviceID)
-	err := ParseRoomSubroutine(user.Client)
+	err := ParseRoomSubroutine(user.Client, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return err

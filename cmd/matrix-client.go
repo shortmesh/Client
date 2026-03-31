@@ -111,8 +111,7 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
 			memberId := id.UserID(*evt.StateKey)
 			if memberId == m.Client.UserID {
-				slog.Debug("Event", "type", "joined room")
-				err := ParseRoomSubroutine(m.Client)
+				err := ParseRoomSubroutine(m.Client, &evt.RoomID)
 				if err != nil {
 					slog.Error(err.Error())
 				}
