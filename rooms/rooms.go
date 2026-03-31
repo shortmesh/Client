@@ -210,7 +210,7 @@ func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 	// ? client, bridgeBot, device, some contact
 	isUser := false
 	isBridgeBot := false
-	isDevice := false
+	// isDevice := false
 	isContact := false
 	for _, member := range members {
 		userType, err := GetTypeUser(client, member)
@@ -233,7 +233,8 @@ func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 		}
 	}
 
-	if isUser && isBridgeBot && isDevice && isContact {
+	// if isUser && isBridgeBot && isDevice && isContact {
+	if isUser && isBridgeBot && isContact {
 		return true, nil
 	}
 
