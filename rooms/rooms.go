@@ -275,29 +275,29 @@ func ProcessIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserI
 		}
 	}
 
-	bridgeNameIsContactsName := false
-	for _, bridgeConf := range cfg.Bridges {
-		if bridgeName == bridgeConf.Name {
-			bridgeNameIsContactsName = bridgeConf.BridgeNameIsContactName
-			break
-		}
-	}
+	// bridgeNameIsContactsName := false
+	// for _, bridgeConf := range cfg.Bridges {
+	// 	if bridgeName == bridgeConf.Name {
+	// 		bridgeNameIsContactsName = bridgeConf.BridgeNameIsContactName
+	// 		break
+	// 	}
+	// }
 
 	contactNameStr := contactName.String()
-	if bridgeNameIsContactsName {
-		displayName, err := client.GetDisplayName(context.Background(), id.UserID(contactName))
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-		contactNameStr, err = cfg.FormatUsername(bridgeName, displayName.DisplayName)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-	}
+	// if bridgeNameIsContactsName {
+	// 	displayName, err := client.GetDisplayName(context.Background(), id.UserID(contactName))
+	// 	if err != nil {
+	// 		slog.Error(err.Error())
+	// 		debug.PrintStack()
+	// 		return err
+	// 	}
+	// 	contactNameStr, err = cfg.FormatUsername(bridgeName, displayName.DisplayName)
+	// 	if err != nil {
+	// 		slog.Error(err.Error())
+	// 		debug.PrintStack()
+	// 		return err
+	// 	}
+	// }
 
 	err = room.Save(bridgeName, contactNameStr, deviceName.String(), false)
 	if err != nil {
