@@ -2,6 +2,7 @@ package configs
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -126,6 +127,7 @@ func (c *Conf) CheckOngoingPattern(bridgeType string, input string) (bool, error
 }
 
 func (c *Conf) CheckUserBridgeBotTemplate(bridgeType string, username string) (bool, error) {
+	slog.Debug(bridgeType, "username", username)
 	config, ok := c.GetBridgeConfig(bridgeType)
 	if !ok {
 		return false, fmt.Errorf("bridge type %s not found in configuration", bridgeType)
