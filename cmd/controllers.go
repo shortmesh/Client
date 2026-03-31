@@ -429,9 +429,9 @@ func parseRoom(client *mautrix.Client, roomId *id.RoomID) error {
 		debug.PrintStack()
 		return err
 	}
+	slog.Debug(client.UserID.String(), "room", roomId, "isContactRoom", isContactRoom)
 
 	if isContactRoom {
-		slog.Debug(client.UserID.String(), "room", roomId, "isContactRoom", isContactRoom)
 		err := rooms.ProcessIsContactRoom(client, room, members)
 		if err != nil {
 			slog.Error(err.Error())
