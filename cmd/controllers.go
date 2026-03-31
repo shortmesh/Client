@@ -443,7 +443,7 @@ func parseRoom(client *mautrix.Client, roomId *id.RoomID) error {
 	return nil
 }
 
-func ParseRoomSubroutine(client *mautrix.Client, roomId *id.RoomID) error {
+func ParseRoomSubroutine(client *mautrix.Client, shouldRepair bool, roomId *id.RoomID) error {
 	ctx := context.Background()
 
 	if roomId != nil {
@@ -468,10 +468,12 @@ func ParseRoomSubroutine(client *mautrix.Client, roomId *id.RoomID) error {
 		}
 	}
 
-	err := repairBridges(client)
-	if err != nil {
-		slog.Error(err.Error())
-		return err
+	if shouldRepair {
+		err := repairBridges(client)
+		if err != nil {
+			slog.Error(err.Error())
+			return err
+		}
 	}
 
 	return nil

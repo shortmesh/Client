@@ -202,7 +202,7 @@ func (r *Rooms) Save(
 }
 
 func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
-	if len(members) != 4 {
+	if len(members) < 3 {
 		return false, nil
 	}
 
@@ -233,12 +233,12 @@ func IsContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
 		}
 	}
 
+	slog.Debug("IsContactRoom check", "isUser", isUser, "isBridgeBot", isBridgeBot, "isContact", isContact)
+
 	// if isUser && isBridgeBot && isDevice && isContact {
 	if isUser && isBridgeBot && isContact {
 		return true, nil
 	}
-
-	slog.Debug("IsContactRoom check", "isUser", isUser, "isBridgeBot", isBridgeBot, "isContact", isContact)
 
 	return false, nil
 }

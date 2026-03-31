@@ -91,6 +91,8 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 		ch <- evt
 	})
 
+	// (repair for this) You already have a direct chat with
+
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
 		room := rooms.Rooms{
 			Client: m.Client,
@@ -111,7 +113,7 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
 			memberId := id.UserID(*evt.StateKey)
 			if memberId == m.Client.UserID {
-				err := ParseRoomSubroutine(m.Client, &evt.RoomID)
+				err := ParseRoomSubroutine(m.Client, false, &evt.RoomID)
 				if err != nil {
 					slog.Error(err.Error())
 				}
