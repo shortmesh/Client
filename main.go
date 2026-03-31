@@ -22,8 +22,8 @@ import (
 // @version 1.0
 func main() {
 	opts := &slog.HandlerOptions{
-		Level:     slog.LevelDebug, // Equivalent to enabling debug logs
-		AddSource: true,            // Equivalent to log.Lshortfile/log.Llongfile
+		Level: slog.LevelDebug, // Equivalent to enabling debug logs
+		// AddSource: true,            // Equivalent to log.Lshortfile/log.Llongfile
 	}
 
 	handler := slog.NewJSONHandler(os.Stdout, opts)
