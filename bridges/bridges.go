@@ -32,7 +32,7 @@ type RMQBindingKeys struct {
 }
 
 func ProcessIncomingMessages(client *mautrix.Client, evt *event.Event) error {
-	slog.Debug("Processing incoming message", "sender", evt.Sender.String())
+	slog.Debug("Processing incoming message", "sender", evt.Sender.String(), "msg", evt.Content.AsMessage().Body)
 	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
 	if err != nil {
 		debug.PrintStack()
