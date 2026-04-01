@@ -15,6 +15,17 @@ type Rooms struct {
 	DbFilename string
 }
 
+func GetRoomTopic(client *mautrix.Client, roomId *id.RoomID) (string, error) {
+	var topicContent event.TopicEventContent
+	err := client.StateEvent(context.Background(), *roomId, event.StateTopic, "", &topicContent)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+	return topicContent.Topic, nil
+}
+
 func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botUsername id.UserID) (bool, error) {
 	members, err := client.JoinedMembers(context.Background(), roomId)
 	if err != nil {

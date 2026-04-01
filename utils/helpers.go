@@ -114,3 +114,8 @@ func HashFileSHA256(filePath string) (string, error) {
 
 	return hashString, nil
 }
+
+func ExtractE164Contact(message string) string {
+	re := regexp.MustCompile(`\+[1-9]\d{6,14}`)
+	return re.FindString(message)
+}

@@ -36,7 +36,7 @@ type BridgeConfig struct {
 	UsernameTemplate        string            `yaml:"username_template"`
 	DisplayUsernameTemplate string            `yaml:"display_username_template"`
 	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
-	BridgeNameIsContactName bool              `yaml:"bridge_name_is_contacts_name"`
+	AddressInTopic          bool              `yaml:"address_in_topic"`
 }
 
 type Conf struct {

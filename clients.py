@@ -28,8 +28,8 @@ def get_signature(method, path, body):
     return signature
 
 def send_message(username, platformName, deviceId, contact, message):
-    # url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
-    url = f"https://client.matrix.afkanerd.de/api/v1/devices/{deviceId}/message"
+    url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
+    # url = f"https://client.matrix.afkanerd.de/api/v1/devices/{deviceId}/message"
     payload = { 
         "username" : username, 
         "platform_name" : platformName, 

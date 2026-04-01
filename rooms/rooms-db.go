@@ -148,35 +148,16 @@ func (r *roomsDb) Clear(bridgeName string, isBridgeBot bool) error {
 func (r *roomsDb) Delete(roomId string) error {
 	tx, err := r.connection.Begin()
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
+		return fmt.Errorf("beginning transaction: %w", err)
 	}
+	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`DELETE FROM rooms WHERE room_id = ?`)
+	_, err = tx.Exec(`DELETE FROM rooms WHERE room_id = ?`, roomId)
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
+		return fmt.Errorf("deleting room: %w", err)
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(roomId)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (r *roomsDb) Save(roomId, username string) error {
@@ -194,6 +175,7 @@ func (r *roomsDb) Save(roomId, username string) error {
 }
 
 func (r *roomsDb) findUsernames(usernames []string) ([]string, error) {
+	slog.Debug("Finding user rooms", "usernames", usernames)
 	if len(usernames) == 0 {
 		return nil, errors.New("no usernames provided")
 	}
@@ -204,9 +186,9 @@ func (r *roomsDb) findUsernames(usernames []string) ([]string, error) {
 	query := fmt.Sprintf(`
         SELECT room_id
         FROM rooms
-        WHERE contact_name IN (%s)
+        WHERE username IN (%s)
         GROUP BY room_id
-        HAVING COUNT(DISTINCT contact_name) = ?
+        HAVING COUNT(DISTINCT username) = ?
     `, placeholders)
 
 	args := make([]any, len(usernames)+1)

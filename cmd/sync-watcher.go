@@ -8,11 +8,12 @@ import (
 
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/users"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
-type SyncUserCallback func(user users.Users) error
+type SyncUserCallback func(client *mautrix.Client, pickleKey []byte) error
 
 type SyncWatcher struct {
 	cache    []id.UserID
@@ -28,10 +29,9 @@ func (s *SyncWatcher) Add(user users.Users) error {
 		go func() {
 			slog.Debug("SyncWatcher", "Adding", user.Client.UserID)
 			s.cache = append(s.cache, user.Client.UserID)
-			err := s.syncUser(user)
+			err := s.syncUser(user.Client, user.PickleKey)
 			if err != nil {
 				slog.Error(err.Error())
-				debug.PrintStack()
 				s.Remove(user)
 			}
 		}()
@@ -58,22 +58,22 @@ func (s *SyncWatcher) Remove(user users.Users) {
 	defer s.wg.Done()
 }
 
-func Sync(user users.Users) error {
-	slog.Debug("Syncing user", "UserID", user.Client.UserID.String(), "DeviceID", user.Client.DeviceID)
-	err := ParseRoomSubroutine(user.Client, true, nil)
+func Sync(client *mautrix.Client, pickleKey []byte) error {
+	slog.Debug("Syncing user", "UserID", client.UserID.String(), "DeviceID", client.DeviceID)
+	err := ParseRoomSubroutine(client, true, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
 	}
 
-	cryptoHelper, err := SetupCryptoHelper(user.Client, []byte(user.PickleKey))
+	cryptoHelper, err := SetupCryptoHelper(client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 	mc := MatrixClient{
-		Client:       user.Client,
+		Client:       client,
 		CryptoHelper: cryptoHelper,
 	}
 
@@ -107,7 +107,7 @@ func Sync(user users.Users) error {
 		}
 	}()
 
-	err = mc.Sync(user, ch)
+	err = mc.Sync(ch)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

@@ -8,7 +8,6 @@ import (
 	"runtime/debug"
 
 	"github.com/shortmesh/core/rooms"
-	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
@@ -77,7 +76,7 @@ func SetupCryptoHelper(client *mautrix.Client, pickleKey []byte) (*cryptohelper.
 	return helper, nil
 }
 
-func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
+func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	syncer := mautrix.NewDefaultSyncer()
 	m.Client.Syncer = syncer
 	machine := m.CryptoHelper.Machine()
@@ -86,9 +85,11 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
 		if err != nil {
 			slog.Error(err.Error())
-			// debug.PrintStack()
+			return
 		}
-		ch <- evt
+		if evt.Type == event.EventMessage {
+			ch <- evt
+		}
 	})
 
 	// (repair for this) You already have a direct chat with
@@ -97,16 +98,21 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 		if evt.Type.Class == event.ToDeviceEventType {
 			machine.HandleToDeviceEvent(ctx, evt)
 		} else if evt.Content.AsMember().Membership == event.MembershipInvite {
-			err := getInvites(m.Client, evt)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
+			memberId := id.UserID(*evt.StateKey)
+			if memberId == m.Client.UserID {
+				err := getInvites(m.Client, evt)
+				if err != nil {
+					slog.Error(err.Error())
+				}
 			}
 		} else if evt.Content.AsMember().Membership == event.MembershipLeave {
-			err := rooms.Delete(evt.RoomID.String(), m.Client.UserID.String())
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
+			memberId := id.UserID(*evt.StateKey)
+			if memberId == m.Client.UserID {
+				err := rooms.Delete(evt.RoomID.String(), m.Client.UserID.String())
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+				}
 			}
 		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
 			memberId := id.UserID(*evt.StateKey)

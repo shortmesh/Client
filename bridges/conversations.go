@@ -8,7 +8,6 @@ import (
 
 	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/contacts"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rabbitmq"
 	"github.com/shortmesh/core/utils"
@@ -100,11 +99,6 @@ func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bo
 	return matched, nil
 }
 
-func startConversationExtractE164Contact(message string) string {
-	re := regexp.MustCompile(`\+[1-9]\d{6,14}`)
-	return re.FindString(message)
-}
-
 func checkIfStartConversation(evt *event.Event) (bool, error) {
 	expected := "Created chat with"
 	message := evt.Content.AsMessage().Body
@@ -188,13 +182,13 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		return nil
 	}
 
-	isAddNewDeviceMatched, err := checkIsFailedLogin(*bridgeCfg, evt)
+	isFailedLogin, err := checkIsFailedLogin(*bridgeCfg, evt)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
-	if isAddNewDeviceMatched {
+	if isFailedLogin {
 		err = rabbitmq.DeleteQueue(client, client.UserID.Localpart())
 		if err != nil {
 			slog.Error(err.Error())
@@ -204,22 +198,22 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		return err
 	}
 
-	isStartConversation, err := checkIfStartConversation(evt)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	if isStartConversation {
-		address := startConversationExtractE164Contact(message)
-		userId := evt.Content.AsMessage().Mentions.UserIDs[0]
+	// isStartConversation, err := checkIfStartConversation(evt)
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	debug.PrintStack()
+	// 	return err
+	// }
+	// if isStartConversation {
+	// 	address := startConversationExtractE164Contact(message)
+	// 	userId := evt.Content.AsMessage().Mentions.UserIDs[0]
 
-		err := (&contacts.Contacts{DbFilename: client.UserID.String()}).Save(address, userId.String())
-		if err != nil {
-			slog.Error(err.Error())
-			return err
-		}
-		return nil
-	}
+	// 	err := (&contacts.Contacts{DbFilename: client.UserID.String()}).Save(address, userId.String())
+	// 	if err != nil {
+	// 		slog.Error(err.Error())
+	// 		return err
+	// 	}
+	// 	return nil
+	// }
 	return nil
 }

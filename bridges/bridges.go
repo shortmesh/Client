@@ -32,8 +32,16 @@ type RMQBindingKeys struct {
 }
 
 func ProcessIncomingMessages(client *mautrix.Client, evt *event.Event) error {
-	memberId := id.UserID(*evt.StateKey)
-	bridgeCfg, err := configs.GetBridgeConfigByBotname(memberId.String())
+	slog.Debug("Processing incoming message", "sender", evt.Sender.String())
+	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+	if bridgeCfg == nil {
+		return nil
+	}
+
 	ok, err := rooms.IsManagementRoom(client, evt.RoomID, id.UserID(bridgeCfg.BotName))
 	if err != nil {
 		debug.PrintStack()
@@ -58,7 +66,8 @@ func StartConversation(
 	bridgeCfg *configs.BridgeConfig,
 	deviceId, contact string,
 ) error {
-	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	// query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], contact)
 
 	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
 	if err != nil {

@@ -40,8 +40,8 @@ func GetClientDB() (*ClientDB, error) {
 
 func GetUserDB(client *mautrix.Client) (*UserDB, error) {
 	usersDb := UserDB{
-		Username: client.UserID.Localpart(),
-		Filepath: "db/" + client.UserID.Localpart() + ".db",
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
 	}
 
 	err := usersDb.Init()
