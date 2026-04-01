@@ -34,14 +34,7 @@ func checkIfLoginMessage(bridgeConfig configs.BridgeConfig, message string) (*st
 			return nil, err
 		}
 
-		cfg, err := configs.GetConf()
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-
-		deviceId, err := cfg.FormatUsername(bridgeConfig.Name, extractedDeviceId)
+		deviceId, err := configs.FormatUsername(bridgeConfig.Name, extractedDeviceId)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()

@@ -318,12 +318,44 @@ func findTopicRooms(client *mautrix.Client, identifier string) (*id.RoomID, erro
 	return nil, nil
 }
 
+func findContactRooms(client *mautrix.Client, identifier *id.UserID) (*id.RoomID, error) {
+	resp, err := client.JoinedRooms(context.Background())
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, room := range resp.JoinedRooms {
+		resp, err := client.JoinedMembers(context.Background(), room)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		if _, ok := resp.Joined[*identifier]; !ok {
+			continue
+		}
+
+		if len(resp.Joined) < 3 || len(resp.Joined) > 4 {
+			continue
+		}
+		return &room, nil
+	}
+	return nil, nil
+}
+
 func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string) (*id.RoomID, error) {
 	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
-	identifier := id.UserID(strings.TrimPrefix(receiver, "+"))
 
 	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	identifier, err := configs.FormatUsername(bridgeName, receiver)
+	if err != nil && err != sql.ErrNoRows {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
@@ -339,10 +371,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		}
 		roomId = _roomId
 	} else {
-		_roomId, err := (&rooms.Rooms{
-			Client:     c.Client,
-			DbFilename: c.Client.UserID.String(),
-		}).FindConversationRoom(identifier, id.UserID(bridgeCfg.BotName))
+		_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier))
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -366,10 +395,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 					}
 					roomId = _roomId
 				} else {
-					_roomId, err := (&rooms.Rooms{
-						Client:     c.Client,
-						DbFilename: c.Client.UserID.String(),
-					}).FindConversationRoom(identifier, id.UserID(bridgeCfg.BotName))
+					_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier))
 					if err != nil && err != sql.ErrNoRows {
 						slog.Error(err.Error())
 						debug.PrintStack()

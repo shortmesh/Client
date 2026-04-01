@@ -66,8 +66,7 @@ func StartConversation(
 	bridgeCfg *configs.BridgeConfig,
 	deviceId, contact string,
 ) error {
-	// query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
-	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], contact)
+	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
 
 	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
 	if err != nil {

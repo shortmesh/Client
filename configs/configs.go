@@ -185,7 +185,7 @@ func CheckUserBridgeBotTemplate(bridgeConfig BridgeConfig, username string) (boo
 	return matched, nil
 }
 
-func (c *Conf) FormatUsername(bridgeName, username string) (*string, error) {
+func FormatUsername(bridgeName, username string) (*string, error) {
 	config, err := GetBridgeConfig(bridgeName)
 	if err != nil {
 		debug.PrintStack()
@@ -210,7 +210,12 @@ func (c *Conf) FormatUsername(bridgeName, username string) (*string, error) {
 		formattedUsername = "@" + formattedUsername
 	}
 	if !strings.Contains(formattedUsername, ":") {
-		formattedUsername = formattedUsername + ":" + c.HomeServerDomain
+		cfg, err := GetConf()
+		if err != nil {
+			debug.PrintStack()
+			return nil, err
+		}
+		formattedUsername = formattedUsername + ":" + cfg.HomeServerDomain
 	}
 
 	return &formattedUsername, nil
