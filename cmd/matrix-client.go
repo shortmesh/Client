@@ -94,29 +94,26 @@ func (m *MatrixClient) Sync(user users.Users, ch chan *event.Event) error {
 	// (repair for this) You already have a direct chat with
 
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
-		room := rooms.Rooms{
-			Client: m.Client,
-			ID:     &evt.RoomID,
-		}
 		if evt.Type.Class == event.ToDeviceEventType {
 			machine.HandleToDeviceEvent(ctx, evt)
 		} else if evt.Content.AsMember().Membership == event.MembershipInvite {
 			err := getInvites(m.Client, evt)
 			if err != nil {
 				slog.Error(err.Error())
+				debug.PrintStack()
 			}
 		} else if evt.Content.AsMember().Membership == event.MembershipLeave {
-			err := room.Delete()
+			err := rooms.Delete(evt.RoomID.String(), m.Client.UserID.String())
 			if err != nil {
 				slog.Error(err.Error())
+				debug.PrintStack()
 			}
 		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
 			memberId := id.UserID(*evt.StateKey)
-			if memberId == m.Client.UserID {
-				err := ParseRoomSubroutine(m.Client, false, &evt.RoomID)
-				if err != nil {
-					slog.Error(err.Error())
-				}
+			err := (&rooms.Rooms{DbFilename: m.Client.UserID.String()}).Save(evt.RoomID, memberId)
+			if err != nil {
+				slog.Debug(err.Error())
+				debug.PrintStack()
 			}
 		}
 	})

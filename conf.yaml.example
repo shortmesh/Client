@@ -24,17 +24,17 @@ bridges:
     display_username_template: "{{.}} (WA)"
     bridge_name_is_contacts_name: false
     cmd:
-      login: "login qr"
+      login: "!wa login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
-      devices: "list-logins"
-      logout: "logout %s"
-      start-conversation: "start-chat %s %s"
+      devices: "!wa list-logins"
+      logout: "!wa logout %s"
       management: "!wa set-management-room"
+      start-conversation: "!wa start-chat %s %s"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the WhatsApp mobile app to log in"
       login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
       login-qr-filename: "qr.png"
-      cancel: "cancel"
+      cancel: "!wa cancel"
 
   - name: signal
     botname: "@signalbot:matrix.example.com"
@@ -42,17 +42,17 @@ bridges:
     display_username_template: "{{.}} (Signal)"
     bridge_name_is_contacts_name: true
     cmd:
-      login: "login"
+      login: "!signal login"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
-      devices: "list-logins"
-      logout: "logout %s"
+      devices: "!signal list-logins"
+      logout: "!signal logout %s"
       management: "!signal set-management-room"
-      start-conversation: "start-chat %s %s"
+      start-conversation: "!signal start-chat %s %s"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the Signal mobile app to log in"
       login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
       login-qr-filename: "qr.png"
-      cancel: "cancel"
+      cancel: "!signal cancel"
 
   - name: telegram
     botname: "@telegrambot:matrix.example.com"
@@ -60,14 +60,14 @@ bridges:
     display_username_template: "{{.}} (Telegram)"
     bridge_name_is_contacts_name: true
     cmd:
-      login: "login qr"
+      login: "!tg login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
-      devices: "list-logins"
-      logout: "logout %s"
+      devices: "!tg list-logins"
+      logout: "!tg logout %s"
       management: "!tg set-management-room"
-      start-conversation: "start-chat %s %s"
+      start-conversation: "!tg start-chat %s %s"
       success: "Successfully logged in as %s"
       login-qr: "Scan the QR code with the Signal mobile app to log in"
       login-qr-failed: "Login failed: Entering code or scanning QR timed out. Please try again."
       login-qr-filename: "qr.png"
-      cancel: "cancel"
+      cancel: "!tg cancel"

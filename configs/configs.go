@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -67,13 +68,45 @@ func GetConf() (*Conf, error) {
 	return c, nil
 }
 
-func (c *Conf) GetBridgeConfig(name string) (*BridgeConfig, bool) {
-	for _, bridge := range c.Bridges {
-		if bridge.Name == name {
-			return &bridge, true
+func GetBridgeConfigs() ([]*BridgeConfig, error) {
+	cfg, err := GetConf()
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+	var bridgeConfigs []*BridgeConfig
+	for _, bridge := range cfg.Bridges {
+		bridgeConfigs = append(bridgeConfigs, &bridge)
+	}
+	return bridgeConfigs, nil
+}
+
+func GetBridgeConfigByBotname(botName string) (*BridgeConfig, error) {
+	cfg, err := GetConf()
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+	for _, bridge := range cfg.Bridges {
+		if bridge.BotName == botName {
+			return &bridge, nil
 		}
 	}
-	return nil, false
+	return nil, nil
+}
+
+func GetBridgeConfig(name string) (*BridgeConfig, error) {
+	cfg, err := GetConf()
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+	for _, bridge := range cfg.Bridges {
+		if bridge.Name == name {
+			return &bridge, nil
+		}
+	}
+	return nil, nil
 }
 
 // func ParseImage(client *mautrix.Client, url string) ([]byte, error) {
@@ -86,8 +119,13 @@ func (c *Conf) GetBridgeConfig(name string) (*BridgeConfig, bool) {
 // }
 
 func (c *Conf) CheckSuccessPattern(bridgeType string, input string) (bool, error) {
-	config, ok := c.GetBridgeConfig(bridgeType)
-	if !ok {
+	config, err := GetBridgeConfig(bridgeType)
+	if err != nil {
+		debug.PrintStack()
+		return false, err
+	}
+
+	if config == nil {
 		return false, fmt.Errorf("bridge type %s not found in configuration", bridgeType)
 	}
 
@@ -107,8 +145,13 @@ func (c *Conf) CheckSuccessPattern(bridgeType string, input string) (bool, error
 }
 
 func (c *Conf) CheckOngoingPattern(bridgeType string, input string) (bool, error) {
-	config, ok := c.GetBridgeConfig(bridgeType)
-	if !ok {
+	config, err := GetBridgeConfig(bridgeType)
+	if err != nil {
+		debug.PrintStack()
+		return false, err
+	}
+
+	if config == nil {
 		return false, fmt.Errorf("bridge type %s not found in configuration", bridgeType)
 	}
 
@@ -142,14 +185,19 @@ func CheckUserBridgeBotTemplate(bridgeConfig BridgeConfig, username string) (boo
 	return matched, nil
 }
 
-func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
-	config, ok := c.GetBridgeConfig(bridgeName)
-	if !ok {
-		return "", fmt.Errorf("bridge type %s not found in configuration", bridgeName)
+func (c *Conf) FormatUsername(bridgeName, username string) (*string, error) {
+	config, err := GetBridgeConfig(bridgeName)
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+
+	if config == nil {
+		return nil, fmt.Errorf("bridge type %s not found in configuration", bridgeName)
 	}
 
 	if config.UsernameTemplate == "" {
-		return "", fmt.Errorf("username template not found for bridge type %s", bridgeName)
+		return nil, fmt.Errorf("username template not found for bridge type %s", bridgeName)
 	}
 	username = strings.ReplaceAll(username, "+", "")
 
@@ -165,5 +213,5 @@ func (c *Conf) FormatUsername(bridgeName, username string) (string, error) {
 		formattedUsername = formattedUsername + ":" + c.HomeServerDomain
 	}
 
-	return formattedUsername, nil
+	return &formattedUsername, nil
 }

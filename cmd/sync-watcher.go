@@ -98,7 +98,7 @@ func Sync(user users.Users) error {
 
 			// Process incoming from bridges
 			go func() {
-				err = (&bridges.Bridges{Client: mc.Client}).SyncCallback(evt)
+				err = bridges.SyncCallback(mc.Client, evt)
 				if err != nil {
 					slog.Error(err.Error())
 					debug.PrintStack()

@@ -2,30 +2,24 @@ package rooms
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
-
-	"github.com/shortmesh/core/configs"
+	"strings"
 )
 
-type RoomsDB struct {
+type roomsDb struct {
 	connection *sql.DB
 	Username   string
 	Filepath   string
 }
 
-func (r *RoomsDB) Init() error {
-	conf, err := configs.GetConf()
+func (r *roomsDb) Init() error {
+	db, err := sql.Open("sqlite3", r.Filepath)
 	if err != nil {
-		return err
-	}
-
-	key := conf.DATABASE_KEY
-	dbname := fmt.Sprintf("%s?_pragma_key=x'%s'&_pragma_cipher_page_size=4096", r.Filepath, key)
-	db, err := sql.Open("sqlite3", dbname)
-	if err != nil {
-		return err
+		slog.Error(err.Error())
+		debug.PrintStack()
 	}
 
 	r.connection = db
@@ -33,23 +27,22 @@ func (r *RoomsDB) Init() error {
 	_, err = db.Exec(`
 	CREATE TABLE IF NOT EXISTS rooms ( 
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
-	device_id TEXT,
-	bridge_name TEXT,
 	room_id TEXT NOT NULL,
-	contact_name TEXT NULL,
-	is_bridge_bot BOOLEAN NULL,
+	name TEXT NULL,
+	username TEXT NULL,
 	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
-	UNIQUE(device_id, bridge_name, contact_name)
+	UNIQUE(room_id, name, username)
 	);
 	`)
 
 	if err != nil {
-		return err
+		slog.Error(err.Error())
+		debug.PrintStack()
 	}
 	return err
 }
 
-func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
+func (r *roomsDb) FetchRoomByRoomId(roomId string) (string, error) {
 	stmt, err := r.connection.Prepare(
 		"select bridge_name from rooms where room_id = ?",
 	)
@@ -82,7 +75,7 @@ func (r *RoomsDB) FetchRoomByRoomId(roomId string) (string, error) {
 	return "", sql.ErrNoRows
 }
 
-func (r *RoomsDB) FetchRoomByName(name string, isBridgeBot bool) (*[]string, error) {
+func (r *roomsDb) FetchRoomByName(name string, isBridgeBot bool) (*[]string, error) {
 	stmt, err := r.connection.Prepare(
 		"select room_id from rooms where bridge_name = ? AND is_bridge_bot = ?",
 	)
@@ -118,7 +111,7 @@ func (r *RoomsDB) FetchRoomByName(name string, isBridgeBot bool) (*[]string, err
 	return &roomIds, nil
 }
 
-func (r *RoomsDB) Clear(bridgeName string, isBridgeBot bool) error {
+func (r *roomsDb) Clear(bridgeName string, isBridgeBot bool) error {
 	tx, err := r.connection.Begin()
 	if err != nil {
 		slog.Error(err.Error())
@@ -152,7 +145,7 @@ func (r *RoomsDB) Clear(bridgeName string, isBridgeBot bool) error {
 	return nil
 }
 
-func (r *RoomsDB) Delete(roomId string) error {
+func (r *roomsDb) Delete(roomId string) error {
 	tx, err := r.connection.Begin()
 	if err != nil {
 		slog.Error(err.Error())
@@ -186,48 +179,61 @@ func (r *RoomsDB) Delete(roomId string) error {
 	return nil
 }
 
-func (r *RoomsDB) Save(
-	roomId string,
-	bridgeName string,
-	memberId string,
-	deviceId string,
-	isBridgeBot bool,
-) error {
-	tx, err := r.connection.Begin()
+func (r *roomsDb) Save(roomId, username string) error {
+	_, err := r.connection.Exec(
+		"INSERT INTO rooms (room_id, username) VALUES (?, ?)",
+		roomId, username,
+	)
 	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO rooms (device_id, bridge_name, room_id, contact_name, is_bridge_bot, timestamp) 
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-	`)
-	if err != nil {
-		return err
-	}
-
-	defer stmt.Close()
-
-	_, err = stmt.Exec(deviceId, bridgeName, roomId, memberId, isBridgeBot)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
+		slog.Debug(err.Error())
+		debug.PrintStack()
 		return err
 	}
 
 	return nil
 }
 
-func (r *RoomsDB) fetchIsContact(contact string) (*string, error) {
-	var roomId string
-	err := r.connection.QueryRow(
-		"select room_id from rooms where contact_name = ?", contact,
-	).Scan(&roomId)
-	if err != nil {
-		return nil, err // includes sql.ErrNoRows automatically
+func (r *roomsDb) findUsernames(usernames []string) ([]string, error) {
+	if len(usernames) == 0 {
+		return nil, errors.New("no usernames provided")
 	}
-	return &roomId, nil
+
+	placeholders := strings.Repeat("?,", len(usernames))
+	placeholders = placeholders[:len(placeholders)-1]
+
+	query := fmt.Sprintf(`
+        SELECT room_id
+        FROM rooms
+        WHERE contact_name IN (%s)
+        GROUP BY room_id
+        HAVING COUNT(DISTINCT contact_name) = ?
+    `, placeholders)
+
+	args := make([]any, len(usernames)+1)
+	for i, c := range usernames {
+		args[i] = c
+	}
+	args[len(usernames)] = len(usernames)
+
+	rows, err := r.connection.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roomIds []string
+	for rows.Next() {
+		var roomId string
+		if err := rows.Scan(&roomId); err != nil {
+			return nil, err
+		}
+		roomIds = append(roomIds, roomId)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(roomIds) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return roomIds, nil
 }

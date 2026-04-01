@@ -164,7 +164,7 @@ func AddDevices(c *gin.Context) {
 	}
 	client.AccessToken = user.Client.AccessToken
 
-	bridge, err := bridges.LookupBridgeByName(client, clientAddDevices.PlatformName)
+	bridgeCfg, err := configs.GetBridgeConfig(clientAddDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -172,7 +172,7 @@ func AddDevices(c *gin.Context) {
 		return
 	}
 
-	err = bridge.AddDevice()
+	err = bridges.AddDevice(client, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -236,15 +236,14 @@ func RemoveDevices(c *gin.Context) {
 	}
 	// client.AccessToken = user.Client.AccessToken
 
-	bridge, err := bridges.LookupBridgeByName(client, clientRemoveDevices.PlatformName)
+	bridgeCfg, err := configs.GetBridgeConfig(clientRemoveDevices.PlatformName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault"})
 		return
 	}
-
-	err = bridge.RemoveDevice(clientRemoveDevices.DeviceId)
+	err = bridges.RemoveDevice(client, bridgeCfg, clientRemoveDevices.DeviceId)
 	slog.Debug("Devices", "removing", clientRemoveDevices.DeviceId)
 	if err != nil {
 		slog.Error(err.Error())
