@@ -45,6 +45,12 @@ sudo apt install libolm-dev
 You can configure the bridges supported by your Homeserver in conf.yaml.
 The client would try to create Rooms and synchronize for your users for every Bridge it comes across in conf.yaml.
 
+> For signal to work please make sure your homeserver is set to put phone numbers in topic
+```yaml
+network:
+    ...in_topics: true
+```
+
 You can modify the conf.yaml file after you make a copy. Place in the following:
 - `homeserver`
 - `homeserver_domain`
