@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/shortmesh/core/rooms"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
@@ -103,23 +102,14 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 				err := getInvites(m.Client, evt)
 				if err != nil {
 					slog.Error(err.Error())
-				}
-			}
-		} else if evt.Content.AsMember().Membership == event.MembershipLeave {
-			memberId := id.UserID(*evt.StateKey)
-			if memberId == m.Client.UserID {
-				err := rooms.Delete(evt.RoomID.String(), m.Client.UserID.String())
-				if err != nil {
-					slog.Error(err.Error())
-					debug.PrintStack()
+					return
 				}
 			}
 		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
-			memberId := id.UserID(*evt.StateKey)
-			err := (&rooms.Rooms{DbFilename: m.Client.UserID.String()}).Save(evt.RoomID, memberId)
+			err := executeCallbacks(evt)
 			if err != nil {
-				slog.Debug(err.Error())
-				debug.PrintStack()
+				slog.Error(err.Error())
+				return
 			}
 		}
 	})
@@ -130,6 +120,31 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		return err
 	}
 
+	return nil
+}
+
+func executeCallbacks(evt *event.Event) error {
+	// memberId := id.UserID(*evt.StateKey)
+	mutex.Lock()
+
+	slog.Debug("Event", "type", evt.Type, "#pending_iterations", len(dbChangeWatchers))
+
+	var deleteCache []string
+	for key, callback := range dbChangeWatchers {
+		ok, err := callback()
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			continue
+		}
+		if ok {
+			deleteCache = append(deleteCache, key)
+		}
+	}
+	for _, key := range deleteCache {
+		delete(dbChangeWatchers, key)
+	}
+	mutex.Unlock()
 	return nil
 }
 

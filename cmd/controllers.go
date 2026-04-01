@@ -145,35 +145,9 @@ func onDatabaseChangeDaemon() error {
 				if !ok {
 					return
 				}
-				// if event.Op == fsnotify.Create || event.Op == fsnotify.Remove {
-				// 	// slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
-				// 	if strings.HasSuffix(event.Name, ".db") {
-				// 		syncQueue[event.Name] = false
-				// 	}
-				// }
 				if event.Op == fsnotify.Write {
 					if strings.HasSuffix(event.Name, "clients.db") {
 						go syncAll("onDatabaseChangeDaemon")
-					} else if strings.HasSuffix(event.Name, ".db") {
-						mutex.Lock()
-						slog.Debug("Client Watcher", "event", event.Op.String(), "filename", event.Name)
-
-						var deleteCache []string
-						for key, callback := range dbChangeWatchers {
-							slog.Debug("Client Watcher Iterating", "name", key)
-							ok, err := callback()
-							if err != nil {
-								slog.Error(err.Error())
-								debug.PrintStack()
-							}
-							if ok {
-								deleteCache = append(deleteCache, key)
-							}
-						}
-						for _, key := range deleteCache {
-							delete(dbChangeWatchers, key)
-						}
-						mutex.Unlock()
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -441,59 +415,12 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 	return roomId, nil
 }
 
-func parseRoom(client *mautrix.Client, roomId *id.RoomID) error {
-	slog.Debug("* Parsing room", "room_id", roomId)
-	members, err := client.JoinedMembers(context.Background(), *roomId)
+func ParseRoomSubroutine(client *mautrix.Client, shouldRepair bool, roomId *id.RoomID) error {
+	err := repairBridges(client)
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return err
 	}
-
-	room := rooms.Rooms{
-		DbFilename: client.UserID.String(),
-	}
-	for member := range members.Joined {
-		err := room.Save(*roomId, member)
-		if err != nil {
-			debug.PrintStack()
-			return err
-		}
-	}
-	return nil
-}
-
-func ParseRoomSubroutine(client *mautrix.Client, shouldRepair bool, roomId *id.RoomID) error {
-	ctx := context.Background()
-
-	if roomId != nil {
-		err := parseRoom(client, roomId)
-		if err != nil {
-			slog.Error(err.Error())
-			return err
-		}
-		return nil
-	} else {
-		joinedRooms, err := client.JoinedRooms(ctx)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-
-		for _, roomId := range joinedRooms.JoinedRooms {
-			parseRoom(client, &roomId)
-		}
-	}
-
-	if shouldRepair {
-		err := repairBridges(client)
-		if err != nil {
-			slog.Error(err.Error())
-			return err
-		}
-	}
-
 	return nil
 }
 
