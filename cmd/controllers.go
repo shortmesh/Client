@@ -256,7 +256,7 @@ func (c *Controller) AddBridges() error {
 
 }
 
-func findTopicRooms(client *mautrix.Client, identifier string) (*id.RoomID, error) {
+func findTopicRooms(client *mautrix.Client, identifier string, deviceId *id.UserID) (*id.RoomID, error) {
 	resp, err := client.JoinedRooms(context.Background())
 	if err != nil {
 		slog.Error(err.Error())
@@ -266,38 +266,52 @@ func findTopicRooms(client *mautrix.Client, identifier string) (*id.RoomID, erro
 
 	joinedRooms := resp.JoinedRooms
 	slog.Debug("search info", "#rooms", len(joinedRooms))
+
+	var roomId *id.RoomID
+	var wg sync.WaitGroup
+	wg.Add(len(joinedRooms))
+
 	for _, room := range joinedRooms {
-		resp, err := client.JoinedMembers(context.Background(), room)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
-		members := resp.Joined
-		slog.Debug("room info", "roomId", room, "#members", len(members))
-		if len(members) < 3 || len(members) > 4 {
-			continue
-		}
+		go func(room *id.RoomID) {
+			if roomId != nil {
+				return
+			}
+			defer wg.Done()
+			resp, err := client.JoinedMembers(context.Background(), *room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			members := resp.Joined
+			if len(members) < 3 || len(members) > 4 {
+				return
+			}
 
-		topic, err := rooms.GetRoomTopic(client, &room)
-		slog.Debug("room info", "topic", topic, "roomId", room)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
-		extracted := utils.ExtractE164Contact(topic)
-		slog.Debug("Searching room by topic", "identifier", identifier, "topic", extracted)
-		if len(extracted) < 1 {
-			continue
-		}
+			if _, ok := members[*deviceId]; !ok {
+				return
+			}
 
-		if extracted == identifier {
-			return &room, nil
-		}
+			topic, err := rooms.GetRoomTopic(client, room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			extracted := utils.ExtractE164Contact(topic)
+			if len(extracted) < 1 {
+				return
+			}
+
+			if extracted == identifier {
+				roomId = room
+				slog.Debug("Topic room found", "roomId", roomId)
+			}
+		}(&room)
 	}
-	return nil, nil
+	wg.Wait()
+	return roomId, nil
 }
 
-func findContactRooms(client *mautrix.Client, identifier *id.UserID) (*id.RoomID, error) {
+func findContactRooms(client *mautrix.Client, identifier, deviceId *id.UserID) (*id.RoomID, error) {
 	resp, err := client.JoinedRooms(context.Background())
 	if err != nil {
 		slog.Error(err.Error())
@@ -305,23 +319,41 @@ func findContactRooms(client *mautrix.Client, identifier *id.UserID) (*id.RoomID
 		return nil, err
 	}
 
-	for _, room := range resp.JoinedRooms {
-		resp, err := client.JoinedMembers(context.Background(), room)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
+	joinedRooms := resp.JoinedRooms
 
-		if _, ok := resp.Joined[*identifier]; !ok {
-			continue
-		}
+	var roomId *id.RoomID
+	var wg *sync.WaitGroup
+	wg.Add(len(joinedRooms))
+	for _, room := range joinedRooms {
+		go func(room *id.RoomID) {
+			if roomId != nil {
+				return
+			}
 
-		if len(resp.Joined) < 3 || len(resp.Joined) > 4 {
-			continue
-		}
-		return &room, nil
+			defer wg.Done()
+
+			resp, err := client.JoinedMembers(context.Background(), *room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+
+			if _, ok := resp.Joined[*deviceId]; !ok {
+				return
+			}
+
+			if _, ok := resp.Joined[*identifier]; !ok {
+				return
+			}
+
+			if len(resp.Joined) < 3 || len(resp.Joined) > 4 {
+				return
+			}
+			roomId = room
+		}(&room)
 	}
-	return nil, nil
+	wg.Wait()
+	return roomId, nil
 }
 
 func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string) (*id.RoomID, error) {
@@ -341,8 +373,10 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 	}
 
 	var roomId *id.RoomID
+	deviceIdTemplate := strings.ReplaceAll(bridgeCfg.UsernameTemplate, "{{.}}", deviceId)
+	formattedDeviceId := id.NewUserID(deviceIdTemplate, c.Client.UserID.Homeserver())
 	if bridgeCfg.AddressInTopic {
-		_roomId, err := findTopicRooms(c.Client, receiver)
+		_roomId, err := findTopicRooms(c.Client, receiver, &formattedDeviceId)
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -350,7 +384,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		}
 		roomId = _roomId
 	} else {
-		_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier))
+		_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier), &formattedDeviceId)
 		if err != nil && err != sql.ErrNoRows {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -366,7 +400,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		callback := func() (bool, error) {
 			return func(wg *sync.WaitGroup) (bool, error) {
 				if bridgeCfg.AddressInTopic {
-					_roomId, err := findTopicRooms(c.Client, receiver)
+					_roomId, err := findTopicRooms(c.Client, receiver, &formattedDeviceId)
 					if err != nil && err != sql.ErrNoRows {
 						slog.Error(err.Error())
 						debug.PrintStack()
@@ -374,7 +408,7 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 					}
 					roomId = _roomId
 				} else {
-					_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier))
+					_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier), &formattedDeviceId)
 					if err != nil && err != sql.ErrNoRows {
 						slog.Error(err.Error())
 						debug.PrintStack()
