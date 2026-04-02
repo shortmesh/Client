@@ -63,6 +63,7 @@ func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bo
 when list-devices is ran to delete devices which are deactivated
 */
 func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeCfg *configs.BridgeConfig) error {
+	slog.Debug("Bot message", "botname", bridgeCfg.Name, "msg", evt.Content.AsMessage().Body)
 	message := evt.Content.AsMessage().Body
 
 	deviceId, err := checkIfSuccess(*bridgeCfg, message)
