@@ -264,17 +264,22 @@ func findTopicRooms(client *mautrix.Client, identifier string) (*id.RoomID, erro
 		return nil, err
 	}
 
-	for _, room := range resp.JoinedRooms {
+	joinedRooms := resp.JoinedRooms
+	slog.Debug("search info", "#rooms", len(joinedRooms))
+	for _, room := range joinedRooms {
 		resp, err := client.JoinedMembers(context.Background(), room)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
 		}
-		if len(resp.Joined) < 3 || len(resp.Joined) > 4 {
+		members := resp.Joined
+		slog.Debug("room info", "roomId", room, "#members", len(members))
+		if len(members) < 3 || len(members) > 4 {
 			continue
 		}
 
 		topic, err := rooms.GetRoomTopic(client, &room)
+		slog.Debug("room info", "topic", topic, "roomId", room)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
@@ -282,7 +287,7 @@ func findTopicRooms(client *mautrix.Client, identifier string) (*id.RoomID, erro
 		extracted := utils.ExtractE164Contact(topic)
 		slog.Debug("Searching room by topic", "identifier", identifier, "topic", extracted)
 		if len(extracted) < 1 {
-			return nil, nil
+			continue
 		}
 
 		if extracted == identifier {
