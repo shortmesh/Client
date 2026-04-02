@@ -283,7 +283,7 @@ func findTopicRooms(client *mautrix.Client, identifier string, deviceId *id.User
 				return
 			}
 			members := resp.Joined
-			if len(members) < 3 || len(members) > 4 {
+			if len(members) < 3 || len(members) > 5 {
 				return
 			}
 
