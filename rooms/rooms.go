@@ -114,6 +114,7 @@ func GetRoomName(client *mautrix.Client, roomId *id.RoomID) (string, error) {
 }
 
 func SendMessage(client *mautrix.Client, roomId id.RoomID, message string) error {
+	slog.Debug("SendMessage", "msg", message, "roomId", roomId)
 	ctx := context.Background()
 	content := event.MessageEventContent{
 		MsgType: event.MsgText,
