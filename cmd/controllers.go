@@ -322,7 +322,7 @@ func findContactRooms(client *mautrix.Client, identifier, deviceId *id.UserID) (
 	joinedRooms := resp.JoinedRooms
 
 	var roomId *id.RoomID
-	var wg *sync.WaitGroup
+	var wg sync.WaitGroup
 	wg.Add(len(joinedRooms))
 	for _, room := range joinedRooms {
 		go func(room *id.RoomID) {
