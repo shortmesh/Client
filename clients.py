@@ -101,7 +101,12 @@ def remove_device(username, platform_name, device_id):
         "platform_name" : platform_name,
         "device_id" : device_id,
     }
-    response = requests.delete(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("DELETE", "/api/v1/devices", f_payload)
+    print("- header:", header)
+    response = requests.delete(url, json=payload, headers=header)
 
     response.raise_for_status()
 

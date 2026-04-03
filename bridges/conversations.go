@@ -27,6 +27,8 @@ func checkIfSuccess(bridgeConfig configs.BridgeConfig, message string) (*string,
 		extractedMessage := strings.Fields(message)
 
 		deviceId := strings.ReplaceAll(extractedMessage[len(extractedMessage)-1], "+", "")
+		re := regexp.MustCompile("[`()]")
+		deviceId = re.ReplaceAllString(deviceId, "")
 		return &deviceId, nil
 	}
 	return nil, nil
