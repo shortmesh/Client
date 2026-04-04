@@ -78,7 +78,7 @@ func StartConversation(
 		return nil
 	}
 
-	err = queryCommand(client, bridgeCfg, roomId, query)
+	err = queryCommand(client, roomId, query)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -89,18 +89,18 @@ func StartConversation(
 	return nil
 }
 
-func queryCommand(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, roomId *id.RoomID, query string) error {
+func queryCommand(client *mautrix.Client, roomId *id.RoomID, query string) error {
 	_, err := client.SendText(
 		context.Background(),
 		*roomId,
 		query,
 	)
-
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
+
 	return nil
 }
 
@@ -118,7 +118,7 @@ func RemoveDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, devic
 		return nil
 	}
 
-	if err := queryCommand(client, bridgeCfg, roomId, cmd); err != nil {
+	if err := queryCommand(client, roomId, cmd); err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
@@ -147,7 +147,7 @@ func AddDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) error {
 		return nil
 	}
 
-	if err := queryCommand(client, bridgeCfg, roomId, cmd); err != nil {
+	if err := queryCommand(client, roomId, cmd); err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
@@ -224,4 +224,15 @@ func GetBotManagementRoom(client *mautrix.Client, botUsername *id.UserID) (*id.R
 	}
 
 	return nil, nil
+}
+
+func AddBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
+	_, err := JoinManagementRooms(client, &bridgeConf)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
 }

@@ -17,9 +17,11 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
+	"github.com/shortmesh/core/syncers"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -27,11 +29,7 @@ type Controller struct {
 	Client *mautrix.Client
 }
 
-var mutex sync.Mutex
-var syncMutex sync.Mutex
-
-var dbChangeWatchers = make(map[string]func() (bool, error))
-var syncQueue = make(map[string]bool)
+var syncWatcher syncers.SyncWatcher
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
 	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
@@ -50,12 +48,12 @@ func (c *Controller) Store() error {
 
 	if user.Client == nil { // changing access token
 		pickleKey, err := utils.GenerateRandomBytes(32)
-		cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
+		cryptoHelper, err := syncers.SetupCryptoHelper(c.Client, pickleKey)
 		if err != nil {
 			return err
 		}
 
-		recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
+		recoveryKey, err := syncers.GenerateAndUploadClientKeys(cryptoHelper)
 		if err != nil {
 			return err
 		}
@@ -79,7 +77,7 @@ func (c *Controller) Store() error {
 
 // !This should be used if account reset is on the table
 func (c *Controller) Login(password string) (string, error) {
-	mc := &MatrixClient{Client: c.Client}
+	mc := &syncers.MatrixClient{Client: c.Client}
 	err := mc.Login(password)
 	if err != nil {
 		slog.Error(err.Error())
@@ -100,14 +98,14 @@ func (c *Controller) Login(password string) (string, error) {
 		return "", err
 	}
 
-	cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
+	cryptoHelper, err := syncers.SetupCryptoHelper(c.Client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return "", err
 	}
 
-	recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
+	recoveryKey, err := syncers.GenerateAndUploadClientKeys(cryptoHelper)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -185,6 +183,18 @@ func syncAll(source string) error {
 	// slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
 	for _, user := range fetchedUsers {
+		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+			Callback: func(evt *event.Event) error {
+				err = bridges.SyncCallback(user.Client, evt)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return err
+				}
+				return nil
+			},
+			ID: user.Client.UserID.String(),
+		})
 		err := syncWatcher.Add(user)
 		if err != nil {
 			slog.Error(err.Error())
@@ -195,16 +205,16 @@ func syncAll(source string) error {
 }
 
 func BootupSyncUsers() error {
-	syncWatcher = SyncWatcher{
-		cache:    make([]id.UserID, 0),
-		wg:       &sync.WaitGroup{},
-		syncUser: Sync,
+	syncWatcher = syncers.SyncWatcher{
+		Cache:    make([]id.UserID, 0),
+		Wg:       &sync.WaitGroup{},
+		SyncUser: syncers.Sync,
 	}
 
 	syncAll("SyncUsers")
 	go onDatabaseChangeDaemon()
 
-	syncWatcher.wg.Wait()
+	syncWatcher.Wg.Wait()
 	slog.Debug("Syncing details", "status", "completed and exiting")
 	return nil
 }
@@ -226,17 +236,6 @@ func (c *Controller) AddDevice(bridgeName string) error {
 	return nil
 }
 
-func addBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
-	_, err := bridges.JoinManagementRooms(client, &bridgeConf)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	return nil
-}
-
 func (c *Controller) AddBridges() error {
 	conf, err := configs.GetConf()
 	if err != nil {
@@ -246,7 +245,7 @@ func (c *Controller) AddBridges() error {
 	bridgeConfs := conf.Bridges
 
 	for _, confBridge := range bridgeConfs {
-		err := addBridge(c.Client, confBridge)
+		err := bridges.AddBridge(c.Client, confBridge)
 		if err != nil {
 			return err
 		}
@@ -427,7 +426,17 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 			}(&waitDb)
 		}
 
-		dbChangeWatchers[receiver] = callback
+		if _, ok := syncers.DBChangeWatchers[receiver]; !ok {
+			syncers.DBChangeWatchers[receiver] = callback
+		}
+
+		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+			ID: bridgeName + receiver,
+			Callback: func(evt *event.Event) error {
+				slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+				return nil
+			},
+		})
 
 		err = bridges.StartConversation(c.Client, bridgeCfg, deviceId, receiver)
 		if err != nil {
@@ -452,43 +461,4 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 	}
 
 	return roomId, nil
-}
-
-func ParseRoomSubroutine(client *mautrix.Client, shouldRepair bool, roomId *id.RoomID) error {
-	err := repairBridges(client)
-	if err != nil {
-		slog.Error(err.Error())
-		return err
-	}
-	return nil
-}
-
-func repairBridges(client *mautrix.Client) error {
-	conf, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	for _, bridgeConf := range conf.Bridges {
-		roomId, err := bridges.GetBotManagementRoom(client, (*id.UserID)(&bridgeConf.BotName))
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-
-		if roomId == nil {
-			slog.Debug("[+] Repairing bridge", "name", bridgeConf.Name)
-			err = addBridge(client, bridgeConf)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return err
-			}
-		}
-	}
-
-	return nil
 }

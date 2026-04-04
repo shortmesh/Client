@@ -1,4 +1,4 @@
-package cmd
+package syncers
 
 import (
 	"context"
@@ -6,12 +6,16 @@ import (
 	"log"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
+
+var mutex sync.Mutex
+var DBChangeWatchers = make(map[string]func() (bool, error))
 
 type MatrixClient struct {
 	Client       *mautrix.Client
@@ -81,37 +85,43 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	machine := m.CryptoHelper.Machine()
 
 	syncer.OnEventType(event.EventEncrypted, func(ctx context.Context, evt *event.Event) {
-		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
-		if err != nil {
-			slog.Error(err.Error())
-			return
-		}
-		if evt.Type == event.EventMessage {
-			ch <- evt
-		}
+		go func(evt *event.Event) {
+			evt, err := m.Client.Crypto.Decrypt(ctx, evt)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			if evt.Type == event.EventMessage {
+				ch <- evt
+			}
+		}(evt)
 	})
 
 	// (repair for this) You already have a direct chat with
 
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
-		if evt.Type.Class == event.ToDeviceEventType {
-			machine.HandleToDeviceEvent(ctx, evt)
-		} else if evt.Content.AsMember().Membership == event.MembershipInvite {
-			memberId := id.UserID(*evt.StateKey)
-			if memberId == m.Client.UserID {
-				err := getInvites(m.Client, evt)
+		go func(evt *event.Event) {
+			if evt.Type.Class == event.ToDeviceEventType {
+				machine.HandleToDeviceEvent(ctx, evt)
+			} else if evt.Content.AsMember().Membership == event.MembershipInvite {
+				memberId := id.UserID(*evt.StateKey)
+				if memberId == m.Client.UserID {
+					err := getInvites(m.Client, evt)
+					if err != nil {
+						slog.Error(err.Error())
+						return
+					}
+				}
+
+			} else if evt.Content.AsMember().Membership == event.MembershipJoin {
+				err := executeCallbacks(evt)
 				if err != nil {
 					slog.Error(err.Error())
 					return
 				}
+
 			}
-		} else if evt.Content.AsMember().Membership == event.MembershipJoin {
-			err := executeCallbacks(evt)
-			if err != nil {
-				slog.Error(err.Error())
-				return
-			}
-		}
+		}(evt)
 	})
 
 	if err := m.Client.Sync(); err != nil {
@@ -127,10 +137,10 @@ func executeCallbacks(evt *event.Event) error {
 	// memberId := id.UserID(*evt.StateKey)
 	mutex.Lock()
 
-	slog.Debug("Event", "type", evt.Type, "#pending_iterations", len(dbChangeWatchers))
+	slog.Debug("Event", "type", evt.Type, "#pending_iterations", len(DBChangeWatchers))
 
 	var deleteCache []string
-	for key, callback := range dbChangeWatchers {
+	for key, callback := range DBChangeWatchers {
 		ok, err := callback()
 		if err != nil {
 			slog.Error(err.Error())
@@ -142,7 +152,7 @@ func executeCallbacks(evt *event.Event) error {
 		}
 	}
 	for _, key := range deleteCache {
-		delete(dbChangeWatchers, key)
+		delete(DBChangeWatchers, key)
 	}
 	mutex.Unlock()
 	return nil
