@@ -22,7 +22,7 @@ bridges:
     botname: "@whatsappbot:matrix.example.com"
     username_template: "whatsapp_{{.}}"
     display_username_template: "{{.}} (WA)"
-    address_in_topic: false
+    type: "room"
     cmd:
       login: "!wa login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
@@ -40,7 +40,7 @@ bridges:
     botname: "@signalbot:matrix.example.com"
     username_template: "signal_{{.}}"
     display_username_template: "{{.}} (Signal)"
-    address_in_topic: true
+    type: "topic"
     cmd:
       login: "!signal login"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
@@ -58,7 +58,7 @@ bridges:
     botname: "@telegrambot:matrix.example.com"
     username_template: "telegram_{{.}}"
     display_username_template: "{{.}} (Telegram)"
-    address_in_topic: false
+    type: "contact"
     cmd:
       login: "!tg login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"

@@ -15,7 +15,7 @@ import (
 )
 
 var mutex sync.Mutex
-var DBChangeWatchers = make(map[string]func() (bool, error))
+var JoinedRoomWatchers = make(map[string]func() (bool, error))
 
 type MatrixClient struct {
 	Client       *mautrix.Client
@@ -97,8 +97,6 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		}(evt)
 	})
 
-	// (repair for this) You already have a direct chat with
-
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
 		go func(evt *event.Event) {
 			if evt.Type.Class == event.ToDeviceEventType {
@@ -113,13 +111,6 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 					}
 				}
 
-			} else if evt.Content.AsMember().Membership == event.MembershipJoin {
-				err := executeCallbacks(evt)
-				if err != nil {
-					slog.Error(err.Error())
-					return
-				}
-
 			}
 		}(evt)
 	})
@@ -130,31 +121,6 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 		return err
 	}
 
-	return nil
-}
-
-func executeCallbacks(evt *event.Event) error {
-	// memberId := id.UserID(*evt.StateKey)
-	mutex.Lock()
-
-	slog.Debug("Event", "type", evt.Type, "#pending_iterations", len(DBChangeWatchers))
-
-	var deleteCache []string
-	for key, callback := range DBChangeWatchers {
-		ok, err := callback()
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			continue
-		}
-		if ok {
-			deleteCache = append(deleteCache, key)
-		}
-	}
-	for _, key := range deleteCache {
-		delete(DBChangeWatchers, key)
-	}
-	mutex.Unlock()
 	return nil
 }
 

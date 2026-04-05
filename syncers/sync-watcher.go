@@ -16,8 +16,9 @@ import (
 )
 
 type SyncEventCallback struct {
-	ID       string
-	Callback func(evt *event.Event) error
+	ID        string
+	EventType string
+	Callback  func(evt *event.Event) error
 }
 
 type SyncUserCallback func(client *mautrix.Client, pickleKey []byte) error
@@ -117,6 +118,16 @@ func Sync(client *mautrix.Client, pickleKey []byte) error {
 		debug.PrintStack()
 		return err
 	}
+	return nil
+}
+
+func UnRegisterSyncMessageListener(id string) error {
+	slog.Debug("UnRegisterSyncMessageListener", "ID", id)
+	if _, ok := syncEventCallbacks[id]; !ok {
+		return fmt.Errorf("Event not registered")
+	}
+
+	delete(syncEventCallbacks, id)
 	return nil
 }
 

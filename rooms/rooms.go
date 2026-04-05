@@ -2,7 +2,9 @@ package rooms
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"regexp"
 	"runtime/debug"
 
 	"maunium.net/go/mautrix"
@@ -128,4 +130,13 @@ func SendMessage(client *mautrix.Client, roomId id.RoomID, message string) error
 	}
 
 	return nil
+}
+
+func ExtractMatrixRoomID(text string) (*id.RoomID, error) {
+	re := regexp.MustCompile(`!([\w-]+):[\w.-]+`)
+	match := re.FindString(text)
+	if match == "" {
+		return nil, fmt.Errorf("no Matrix room ID found in text")
+	}
+	return (*id.RoomID)(&match), nil
 }

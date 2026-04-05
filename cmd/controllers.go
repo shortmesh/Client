@@ -15,6 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/contacts"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/syncers"
@@ -371,80 +372,21 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		return nil, err
 	}
 
-	var roomId *id.RoomID
 	deviceIdTemplate := strings.ReplaceAll(bridgeCfg.UsernameTemplate, "{{.}}", deviceId)
 	formattedDeviceId := id.NewUserID(deviceIdTemplate, c.Client.UserID.Homeserver())
-	if bridgeCfg.AddressInTopic {
-		_roomId, err := findTopicRooms(c.Client, receiver, &formattedDeviceId)
-		if err != nil && err != sql.ErrNoRows {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		roomId = _roomId
-	} else {
-		_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier), &formattedDeviceId)
-		if err != nil && err != sql.ErrNoRows {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		roomId = _roomId
-	}
 
-	if roomId == nil {
-		var waitDb sync.WaitGroup
-		waitDb.Add(1)
+	roomId, err := noisyRoomIdRequest(
+		c.Client,
+		bridgeCfg,
+		&formattedDeviceId,
+		(*id.UserID)(identifier),
+		receiver,
+		deviceId,
+	)
 
-		callback := func() (bool, error) {
-			return func(wg *sync.WaitGroup) (bool, error) {
-				if bridgeCfg.AddressInTopic {
-					_roomId, err := findTopicRooms(c.Client, receiver, &formattedDeviceId)
-					if err != nil && err != sql.ErrNoRows {
-						slog.Error(err.Error())
-						debug.PrintStack()
-						return false, err
-					}
-					roomId = _roomId
-				} else {
-					_roomId, err := findContactRooms(c.Client, (*id.UserID)(identifier), &formattedDeviceId)
-					if err != nil && err != sql.ErrNoRows {
-						slog.Error(err.Error())
-						debug.PrintStack()
-						return false, err
-					}
-					roomId = _roomId
-				}
-
-				if roomId == nil {
-					return false, nil
-				}
-				slog.Debug("Db watcher", "found room", roomId)
-
-				wg.Done()
-				return true, nil
-			}(&waitDb)
-		}
-
-		if _, ok := syncers.DBChangeWatchers[receiver]; !ok {
-			syncers.DBChangeWatchers[receiver] = callback
-		}
-
-		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
-			ID: bridgeName + receiver,
-			Callback: func(evt *event.Event) error {
-				slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
-				return nil
-			},
-		})
-
-		err = bridges.StartConversation(c.Client, bridgeCfg, deviceId, receiver)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
-
-		waitDb.Wait()
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
 	}
 
 	if roomId == nil {
@@ -454,6 +396,128 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 	}
 
 	err = rooms.SendMessage(c.Client, *roomId, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return roomId, nil
+}
+
+func noisyRoomIdRequest(
+	client *mautrix.Client,
+	bridgeCfg *configs.BridgeConfig,
+	formattedDeviceId,
+	identifier *id.UserID,
+	receiver,
+	deviceId string,
+) (*id.RoomID, error) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	callbackEventId := bridgeCfg.Name + receiver
+	// callbackEventType := func() string {
+	// 	switch bridgeCfg.Type {
+	// 	case "room":
+	// 	case "topic":
+	// 		return "m.room.member"
+	// 	case "contact":
+	// 		return "m.room.message"
+	// 	}
+	// 	return ""
+	// }()
+	// if len(callbackEventType) < 1 {
+	// 	return nil, fmt.Errorf("Invalid type for callback: %s\n", bridgeCfg.Type)
+	// }
+
+	var roomId *id.RoomID
+	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+		ID:        callbackEventId,
+		EventType: "m.room.message",
+		Callback: func(evt *event.Event) error {
+			// switch bridgeCfg.Type {
+			// case "room":
+			// 	_roomId, err := isRoomCallback(client, identifier, formattedDeviceId)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// case "topic":
+			// 	_roomId, err := isTopicCallback(client, receiver, formattedDeviceId)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// case "contact":
+			// 	slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+			// 	_roomId, err := isContactCallback(client, evt, &receiver)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// }
+
+			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+			_roomId, err := isContactCallback(client, evt, &receiver)
+			if err != nil {
+				slog.Error(err.Error())
+				return err
+			}
+			roomId = _roomId
+			defer wg.Done()
+
+			syncers.UnRegisterSyncMessageListener(callbackEventId)
+
+			return nil
+		},
+	})
+
+	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	wg.Wait()
+	return roomId, nil
+}
+
+func isRoomCallback(client *mautrix.Client, identifier, formattedDeviceId *id.UserID) (*id.RoomID, error) {
+	roomId, err := findContactRooms(client, identifier, formattedDeviceId)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return roomId, nil
+}
+
+func isTopicCallback(client *mautrix.Client, receiver string, formattedDeviceId *id.UserID) (*id.RoomID, error) {
+	roomId, err := findTopicRooms(client, receiver, formattedDeviceId)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return roomId, nil
+}
+
+func isContactCallback(client *mautrix.Client, evt *event.Event, receiver *string) (*id.RoomID, error) {
+	contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
+	if len(contactUserIds) != 1 {
+		slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
+		return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
+	}
+	err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	roomId, err := rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
