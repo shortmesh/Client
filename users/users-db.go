@@ -269,7 +269,11 @@ func (UserDB *UserDB) Close() {
 	defer UserDB.connection.Close()
 }
 
-func (UserDB *UserDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact string) (*string, error) {
+func (UserDB *UserDB) FetchDeviceBridgeContact(
+	deviceId,
+	bridgeName,
+	contact string,
+) (*string, error) {
 	slog.Debug("Fetching bridge", "deviceId", deviceId, "bridgeNam", bridgeName, "contact", contact)
 	stmt, err := UserDB.connection.Prepare(
 		"select room_id from rooms where device_id = ? AND bridge_name = ? AND contact_name = ? AND is_bridge_bot = ?",
@@ -302,4 +306,42 @@ func (UserDB *UserDB) FetchDeviceBridgeContact(deviceId, bridgeName, contact str
 	}
 
 	return nil, sql.ErrNoRows
+}
+
+func (UserDB *UserDB) FetchDeviceBridgeContactOnly(
+	bridgeName,
+	contact string,
+) (string, error) {
+	slog.Debug("Fetching bridge", "bridgeNam", bridgeName, "contact", contact)
+	stmt, err := UserDB.connection.Prepare(
+		"select room_id from rooms where bridge_name = ? AND contact_name = ? AND is_bridge_bot = ?",
+	)
+	if err != nil {
+		return "", err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(bridgeName, contact, false)
+	if err != nil {
+		return "", err
+	}
+
+	defer rows.Close()
+
+	if rows.Next() {
+		var roomId string
+
+		err = rows.Scan(&roomId)
+		if err != nil {
+			return "", err
+		}
+		return roomId, nil
+	}
+
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
+
+	return "", sql.ErrNoRows
 }

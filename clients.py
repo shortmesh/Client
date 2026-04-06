@@ -29,6 +29,7 @@ def get_signature(method, path, body):
 
 def send_message(username, platformName, deviceId, contact, message):
     url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
+    # url = f"https://client.matrix.afkanerd.de/api/v1/devices/{deviceId}/message"
     payload = { 
         "username" : username, 
         "platform_name" : platformName, 
@@ -36,7 +37,13 @@ def send_message(username, platformName, deviceId, contact, message):
         "contact" : contact, 
         "text" : message, 
     }
-    response = requests.post(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", f"/api/v1/devices/{deviceId}/message", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
 
     response.raise_for_status()
 
@@ -94,7 +101,12 @@ def remove_device(username, platform_name, device_id):
         "platform_name" : platform_name,
         "device_id" : device_id,
     }
-    response = requests.delete(url, json=payload)
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("DELETE", "/api/v1/devices", f_payload)
+    print("- header:", header)
+    response = requests.delete(url, json=payload, headers=header)
 
     response.raise_for_status()
 
@@ -108,7 +120,14 @@ def add_device(username, platform_name):
         "username" : username,
         "platform_name" : platform_name,
     }
-    response = requests.post(url, json=payload)
+
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", "/api/v1/devices", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
 
     response.raise_for_status()
 

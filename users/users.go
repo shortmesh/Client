@@ -40,8 +40,8 @@ func GetClientDB() (*ClientDB, error) {
 
 func GetUserDB(client *mautrix.Client) (*UserDB, error) {
 	usersDb := UserDB{
-		Username: client.UserID.Localpart(),
-		Filepath: "db/" + client.UserID.Localpart() + ".db",
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
 	}
 
 	err := usersDb.Init()
@@ -83,39 +83,6 @@ func (u *Users) Save() error {
 		return err
 	}
 	return nil
-}
-
-func FetchMessageContact(
-	client *mautrix.Client,
-	deviceId,
-	bridgeName,
-	contact string,
-) (*string, error) {
-	usersDb, err := GetUserDB(client)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	roomId, err := usersDb.FetchDeviceBridgeContact(
-		deviceId,
-		bridgeName,
-		contact,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-
-		}
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	return roomId, nil
 }
 
 func RemoveUser(client *mautrix.Client) error {

@@ -2,30 +2,26 @@ package bridges
 
 import (
 	"context"
-	"database/sql"
-	"log"
 	"log/slog"
-	"regexp"
+	"maps"
 	"runtime/debug"
+	"slices"
 	"strings"
 
-	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
-	"github.com/shortmesh/core/rabbitmq"
 	"github.com/shortmesh/core/rooms"
-	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
-type Bridges struct {
-	BridgeConfig configs.BridgeConfig
-	RoomID       *id.RoomID
-	Client       *mautrix.Client
-}
+// type Bridges struct {
+// 	BridgeConfig configs.BridgeConfig
+// 	RoomID       *id.RoomID
+// 	Client       *mautrix.Client
+// }
 
 type RMQExchanges struct {
 	AddNewDevice string `default:"bridges.topic"`
@@ -35,479 +31,208 @@ type RMQBindingKeys struct {
 	AddNewDevice string `default:"bridges.topic.add_new_device"`
 }
 
-func reverseForBridgeBot(client *mautrix.Client, roomId id.RoomID) (*Bridges, error) {
-	room := rooms.Rooms{
-		Client: client,
-		ID:     &roomId,
+func ProcessIncomingMessages(client *mautrix.Client, evt *event.Event) error {
+	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
+	if err != nil {
+		debug.PrintStack()
+		return err
 	}
-	members, err := room.GetRoomMembers()
+	if bridgeCfg == nil {
+		return nil
+	}
+
+	ok, err := rooms.IsManagementRoom(client, evt.RoomID, id.UserID(bridgeCfg.BotName))
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+
+	if !ok {
+		return nil
+	}
+
+	err = processIncomingBotMessage(client, evt, bridgeCfg)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
+func StartConversation(
+	client *mautrix.Client,
+	bridgeCfg *configs.BridgeConfig,
+	deviceId, contact string,
+) error {
+	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+
+	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+
+	if roomId == nil {
+		slog.Error("* Add device Error", "reason", "Bot managment room not found", "bridge", bridgeCfg.Name)
+		return nil
+	}
+
+	err = queryCommand(client, roomId, query)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
+func queryCommand(client *mautrix.Client, roomId *id.RoomID, query string) error {
+	_, err := client.SendText(
+		context.Background(),
+		*roomId,
+		query,
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
+func RemoveDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, deviceId string) error {
+	cmd := strings.ReplaceAll(bridgeCfg.Cmd["logout"], "%s", deviceId)
+
+	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+
+	if roomId == nil {
+		slog.Error("* Add device Error", "reason", "Bot managment room not found", "bridge", bridgeCfg.Name)
+		return nil
+	}
+
+	if err := queryCommand(client, roomId, cmd); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = (&devices.Devices{Client: client, DeviceId: deviceId}).Remove()
+	if err != nil {
+		slog.Error(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func AddDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) error {
+	cmd := bridgeCfg.Cmd["login"]
+
+	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+
+	if roomId == nil {
+		slog.Error("* Add device Error", "reason", "Bot managment room not found", "bridge", bridgeCfg.Name)
+		return nil
+	}
+
+	if err := queryCommand(client, roomId, cmd); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
+func JoinManagementRooms(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) (*id.RoomID, error) {
+	slog.Debug("Bridge", "status", "joining management")
+	_roomId, err := (&rooms.Rooms{Client: client}).CreateRoom([]id.UserID{
+		id.UserID(bridgeCfg.BotName),
+	}, true)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	bridgeConf, err := configs.GetBridgeConfig(bridgeCfg.BotName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	var bridgeBotContact id.UserID
-	slog.Debug("Reverse for bridgebot", "members", members)
-	for _, member := range members {
-		if member != client.UserID {
-			bridgeBotContact = member
-			break
+	if bridgeConf == nil {
+		return nil, err
+	}
+
+	roomId := id.RoomID(_roomId)
+	err = rooms.SendMessage(client, roomId, bridgeConf.Cmd["management"])
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return &roomId, nil
+}
+
+func SyncCallback(client *mautrix.Client, evt *event.Event) error {
+	err := ProcessIncomingMessages(client, evt)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
+func GetBotManagementRoom(client *mautrix.Client, botUsername *id.UserID) (*id.RoomID, error) {
+	resp, err := client.JoinedRooms(context.Background())
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, roomId := range resp.JoinedRooms {
+		resp, err := client.JoinedMembers(context.Background(), roomId)
+		if err != nil {
+			debug.PrintStack()
+			return nil, err
 		}
-	}
 
-	conf, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
+		members := slices.Collect(maps.Keys(resp.Joined))
+		ok, err := rooms.IsManagementRoom(client, roomId, *botUsername)
+		if err != nil {
+			debug.PrintStack()
+			return nil, err
+		}
 
-	userType, err := rooms.GetTypeUser(client, bridgeBotContact)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	for _, bridgeConf := range conf.Bridges {
-		slog.Debug("reverse search", "searching", bridgeBotContact)
-		if userType == users.BridgeBot && bridgeBotContact.String() == bridgeConf.BotName {
-			roomId := id.RoomID(roomId)
-			return (&Bridges{
-				BridgeConfig: bridgeConf,
-				Client:       client,
-				RoomID:       &roomId,
-			}), nil
+		if ok && slices.Contains(members, *botUsername) {
+			return &roomId, nil
 		}
 	}
 
 	return nil, nil
 }
 
-func (b *Bridges) checkIfLoginMessage(message string) (bool, error) {
-	cmd := b.BridgeConfig.Cmd["list-logins"]
-	cmd = regexp.QuoteMeta(cmd)
-	regexPattern := strings.ReplaceAll(cmd, "%s", ".*")
-	matched, err := regexp.MatchString(regexPattern, message)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	if matched {
-		deviceId, err := utils.ExtractBracketContent(message)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-
-		cfg, err := configs.GetConf()
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-		deviceId, err = cfg.FormatUsername(b.BridgeConfig.Name, deviceId)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-
-		slog.Debug("Saving device", "bridgeName", b.BridgeConfig.Name)
-
-		err = (&devices.Devices{
-			Client:     b.Client,
-			DeviceId:   deviceId,
-			BridgeName: b.BridgeConfig.Name,
-		}).Save()
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-		slog.Debug("Saved new device", "name", deviceId)
-	}
-	return false, nil
-}
-
-func (b *Bridges) checkIfSuccess(message string) (bool, error) {
-	regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["success"], "%s", ".*")
-	matched, err := regexp.MatchString(regexPattern, message)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	if matched {
-		extractedMessage := strings.Fields(message)
-
-		// cfg, err := configs.GetConf()
-		// if err != nil {
-		// 	slog.Error(err.Error())
-		// 	debug.PrintStack()
-		// 	return false, err
-		// }
-
-		// deviceId, err := cfg.FormatUsername(b.BridgeConfig.Name, extractedMessage[len(extractedMessage)-1])
-		deviceId := strings.ReplaceAll(extractedMessage[len(extractedMessage)-1], "+", "")
-
-		err := (&devices.Devices{
-			Client:     b.Client,
-			DeviceId:   deviceId,
-			BridgeName: b.BridgeConfig.Name,
-		}).Save()
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-
-		if err = rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart()); err != nil {
-			slog.Error(err.Error())
-			return false, err
-		}
-		slog.Debug("Saved new device", "name", deviceId)
-	}
-	return false, nil
-}
-
-func (b *Bridges) checkIfMatchDevice(evt *event.Event) (bool, error) {
-	exchange := RMQExchanges{}
-	defaults.Set(&exchange)
-
-	bindingKey := RMQBindingKeys{}
-	defaults.Set(&bindingKey)
-
-	if evt.Content.AsMessage().FileName != "" &&
-		evt.Content.AsMessage().FileName == b.BridgeConfig.Cmd["login-qr-filename"] {
-		slog.Debug("Login QR found", "bridge", b.BridgeConfig.Name)
-
-		err := rabbitmq.Sender(
-			b.Client,
-			evt.Content.AsMessage().Body,
-			exchange.AddNewDevice,
-			bindingKey.AddNewDevice,
-		)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-		return true, nil
-	}
-
-	regexPattern := strings.ReplaceAll(b.BridgeConfig.Cmd["login-qr-failed"], "%s", ".*")
-	matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	if matched {
-		slog.Debug("Failed Login QR found", "bridge", b.BridgeConfig.Name)
-		err = rabbitmq.DeleteQueue(b.Client, b.Client.UserID.Localpart())
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return false, err
-		}
-		slog.Debug("Queue deleted", "queueName", b.Client.UserID)
-	}
-
-	return matched, nil
-}
-
-/*
-- BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
-when list-devices is ran to delete devices which are deactivated
-*/
-func processIncomingBotMessage(client *mautrix.Client, evt *event.Event) (*Bridges, error) {
-	bridge, err := reverseForBridgeBot(client, evt.RoomID)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	if bridge == nil {
-		return nil, nil
-	}
-	slog.Debug("Incoming bot message", "botname", bridge.BridgeConfig.Name)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	message := evt.Content.AsMessage().Body
-
-	isManagementRoom, err := rooms.IsManagementRoom(client, evt.RoomID, bridge.BridgeConfig.BotName)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	if isManagementRoom {
-		slog.Debug(
-			"Management room",
-			"roomId", evt.RoomID.String(),
-			"bridge", bridge.BridgeConfig.Name,
-			"message", message,
-		)
-		isLoginMatched, err := bridge.checkIfLoginMessage(message)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-
-		if isLoginMatched {
-			return nil, err
-		}
-
-		isSuccessMatched, err := bridge.checkIfSuccess(message)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		if isSuccessMatched {
-			return nil, err
-		}
-
-		isAddNewDeviceMatched, err := bridge.checkIfMatchDevice(evt)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		if isAddNewDeviceMatched {
-			return nil, err
-		}
-	}
-
-	// TODO: insert other possiblities
-
-	return bridge, nil
-}
-
-func (b *Bridges) processIncomingMessages(evt *event.Event) error {
-	userType, err := rooms.GetTypeUser(b.Client, evt.Sender)
+func AddBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
+	_, err := JoinManagementRooms(client, &bridgeConf)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
 
-	if userType == users.BridgeBot {
-		_, err := processIncomingBotMessage(b.Client, evt)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-		return nil
-	}
-
-	// TODO: process other incoming messages for bridges
-
-	return nil
-}
-
-func (b *Bridges) LookupBridgeByName(name string) (*Bridges, error) {
-	roomsDb, err := rooms.GetRoomDb(b.Client)
-
-	if err != nil {
-		log.Println("Error initializing client db:", err)
-		return nil, err
-	}
-
-	bridgeRoomIds, err := roomsDb.FetchRoomByName(name, true)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(*bridgeRoomIds) < 1 {
-		return nil, sql.ErrNoRows
-	}
-
-	roomId := id.RoomID((*bridgeRoomIds)[0])
-	bridge := Bridges{
-		RoomID: &roomId,
-	}
-	bridge.Client = b.Client
-
-	conf, err := configs.GetConf()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, confBridge := range conf.Bridges {
-		if confBridge.Name == name {
-			bridge.BridgeConfig = confBridge
-		}
-	}
-
-	return &bridge, nil
-}
-
-func (b *Bridges) LookupBridgeByRoomId(roomId string) (*Bridges, error) {
-	roomsDb, err := rooms.GetRoomDb(b.Client)
-
-	if err != nil {
-		log.Println("Error initializing client db:", err)
-		return nil, err
-	}
-
-	bridgeName, err := roomsDb.FetchRoomByRoomId(roomId)
-	if err != nil {
-		return nil, err
-	}
-
-	conf, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
-	}
-
-	for _, confBridge := range conf.Bridges {
-		if confBridge.Name == bridgeName {
-			b.BridgeConfig = confBridge
-		}
-	}
-
-	return (&Bridges{
-		BridgeConfig: configs.BridgeConfig{
-			Name: bridgeName,
-		},
-	}), nil
-}
-
-func (b *Bridges) queryCommand(query string) error {
-	slog.Debug("Bridge query", "name", b.BridgeConfig.Name, "query", query, "roomId", b.RoomID)
-	_, err := b.Client.SendText(
-		context.Background(),
-		*b.RoomID,
-		query,
-	)
-
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	return nil
-}
-
-func (b *Bridges) RemoveDevice(deviceId string) error {
-	cmd := strings.ReplaceAll(b.BridgeConfig.Cmd["logout"], "%s", deviceId)
-	slog.Debug("Bridge remove device", "cmd", cmd)
-	// cmd = fmt.Sprintf("%s %s", cmd, deviceId)
-	if err := b.queryCommand(cmd); err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	err := (&devices.Devices{Client: b.Client, DeviceId: deviceId}).Remove()
-	if err != nil {
-		slog.Error(err.Error())
-		return err
-	}
-
-	return nil
-}
-
-func (b *Bridges) AddDevice() error {
-	if err := b.queryCommand(b.BridgeConfig.Cmd["login"]); err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	return nil
-}
-
-func (b *Bridges) JoinManagementRooms() (id.RoomID, error) {
-	_roomId, err := (&rooms.Rooms{
-		Client:   b.Client,
-		IsBridge: true,
-	}).CreateRoom([]id.UserID{
-		id.UserID(b.BridgeConfig.BotName),
-	}, true)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return "", err
-	}
-
-	conf, err := configs.GetConf()
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return "", err
-	}
-
-	bridgeConf, found := conf.GetBridgeConfig(b.BridgeConfig.Name)
-	if !found {
-		slog.Error("Bridge not found", "name", b.BridgeConfig.Name)
-		return "", err
-	}
-
-	roomId := id.RoomID(_roomId)
-	err = (&rooms.Rooms{
-		Client: b.Client,
-		ID:     &roomId,
-	}).SendMessage(bridgeConf.Cmd["management"])
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return "", err
-	}
-
-	b.RoomID = &roomId
-	return roomId, nil
-}
-
-func (b *Bridges) Clear() error {
-	roomsDb, err := rooms.GetRoomDb(b.Client)
-	if err != nil {
-		log.Println("Error initializing client db:", err)
-		return err
-	}
-
-	// TODO: put device id and other params here
-	if err := roomsDb.Clear(b.BridgeConfig.Name, true); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (b *Bridges) Save() error {
-	roomsDb, err := rooms.GetRoomDb(b.Client)
-	if err != nil {
-		log.Println("Error initializing client db:", err)
-		return err
-	}
-
-	// TODO: put device id and other params here
-	if err := roomsDb.Save(b.RoomID.String(), b.BridgeConfig.Name, "", "", true); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (b *Bridges) SyncCallback(evt *event.Event) error {
-	b.processIncomingMessages(evt)
 	return nil
 }
