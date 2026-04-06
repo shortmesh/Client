@@ -80,6 +80,8 @@ func start(
 
 	ch, err := conn.Channel()
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return nil, nil, err
 	}
 

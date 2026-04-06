@@ -1,4 +1,4 @@
-package cmd
+package syncers
 
 import (
 	"context"
@@ -6,13 +6,16 @@ import (
 	"log"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 
-	"github.com/shortmesh/core/rooms"
 	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/crypto"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
+
+var mutex sync.Mutex
+var JoinedRoomWatchers = make(map[string]func() (bool, error))
 
 type MatrixClient struct {
 	Client       *mautrix.Client
@@ -82,32 +85,34 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 	machine := m.CryptoHelper.Machine()
 
 	syncer.OnEventType(event.EventEncrypted, func(ctx context.Context, evt *event.Event) {
-		evt, err := m.Client.Crypto.Decrypt(ctx, evt)
-		if err != nil {
-			slog.Error(err.Error())
-			// debug.PrintStack()
-		}
-		ch <- evt
+		go func(evt *event.Event) {
+			evt, err := m.Client.Crypto.Decrypt(ctx, evt)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			if evt.Type == event.EventMessage {
+				ch <- evt
+			}
+		}(evt)
 	})
 
 	syncer.OnEvent(func(ctx context.Context, evt *event.Event) {
-		room := rooms.Rooms{
-			Client: m.Client,
-			ID:     &evt.RoomID,
-		}
-		if evt.Type.Class == event.ToDeviceEventType {
-			machine.HandleToDeviceEvent(ctx, evt)
-		} else if evt.Content.AsMember().Membership == event.MembershipInvite {
-			err := room.GetInvites(evt)
-			if err != nil {
-				slog.Error(err.Error())
+		go func(evt *event.Event) {
+			if evt.Type.Class == event.ToDeviceEventType {
+				machine.HandleToDeviceEvent(ctx, evt)
+			} else if evt.Content.AsMember().Membership == event.MembershipInvite {
+				memberId := id.UserID(*evt.StateKey)
+				if memberId == m.Client.UserID {
+					err := getInvites(m.Client, evt)
+					if err != nil {
+						slog.Error(err.Error())
+						return
+					}
+				}
+
 			}
-		} else if evt.Content.AsMember().Membership == event.MembershipLeave {
-			err := room.Delete()
-			if err != nil {
-				slog.Error(err.Error())
-			}
-		}
+		}(evt)
 	})
 
 	if err := m.Client.Sync(); err != nil {
@@ -184,34 +189,12 @@ func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (strin
 	return key.RecoveryKey(), nil
 }
 
-func verifyRecoveryKey(
-	machine *crypto.OlmMachine,
-	recoveryKey string,
-) error {
-	ctx := context.Background()
-	keyId, keyData, err := machine.SSSS.GetDefaultKeyData(ctx)
+func getInvites(client *mautrix.Client, evt *event.Event) error {
+	_, err := client.JoinRoomByID(context.Background(), evt.RoomID)
 	if err != nil {
-		panic(err)
-	}
-
-	key, err := keyData.VerifyRecoveryKey(keyId, recoveryKey)
-	if err != nil {
-		panic(err)
-	}
-
-	err = machine.FetchCrossSigningKeysFromSSSS(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-
-	err = machine.SignOwnDevice(ctx, machine.OwnIdentity())
-	if err != nil {
-		panic(err)
-	}
-
-	err = machine.SignOwnMasterKey(ctx)
-	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
 	}
 
 	return nil

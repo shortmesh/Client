@@ -4,25 +4,33 @@ import (
 	// 	"context"
 	// 	"fmt"
 
+	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/shortmesh/core/bridges"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/contacts"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rooms"
+	"github.com/shortmesh/core/syncers"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
 type Controller struct {
 	Client *mautrix.Client
 }
+
+var syncWatcher syncers.SyncWatcher
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
 	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
@@ -41,12 +49,12 @@ func (c *Controller) Store() error {
 
 	if user.Client == nil { // changing access token
 		pickleKey, err := utils.GenerateRandomBytes(32)
-		cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
+		cryptoHelper, err := syncers.SetupCryptoHelper(c.Client, pickleKey)
 		if err != nil {
 			return err
 		}
 
-		recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
+		recoveryKey, err := syncers.GenerateAndUploadClientKeys(cryptoHelper)
 		if err != nil {
 			return err
 		}
@@ -60,17 +68,17 @@ func (c *Controller) Store() error {
 		return err
 	}
 
-	err = c.AddBridges()
-	if err != nil {
-		return err
-	}
+	// err = c.AddBridges()
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
 
 // !This should be used if account reset is on the table
 func (c *Controller) Login(password string) (string, error) {
-	mc := &MatrixClient{Client: c.Client}
+	mc := &syncers.MatrixClient{Client: c.Client}
 	err := mc.Login(password)
 	if err != nil {
 		slog.Error(err.Error())
@@ -91,14 +99,14 @@ func (c *Controller) Login(password string) (string, error) {
 		return "", err
 	}
 
-	cryptoHelper, err := SetupCryptoHelper(c.Client, pickleKey)
+	cryptoHelper, err := syncers.SetupCryptoHelper(c.Client, pickleKey)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return "", err
 	}
 
-	recoveryKey, err := GenerateAndUploadClientKeys(cryptoHelper)
+	recoveryKey, err := syncers.GenerateAndUploadClientKeys(cryptoHelper)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -118,8 +126,7 @@ func (c *Controller) Login(password string) (string, error) {
 	return recoveryKey, nil
 }
 
-func clientsDbWatcher() error {
-	slog.Debug("Client Watcher", "status", "initialized")
+func onDatabaseChangeDaemon() error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		slog.Error(err.Error())
@@ -137,13 +144,10 @@ func clientsDbWatcher() error {
 				if !ok {
 					return
 				}
-				if event.Op == fsnotify.Create {
-					slog.Debug("Client Watcher", "created file:", event.Name)
-					go syncAll()
-				}
-				if event.Op == fsnotify.Remove {
-					slog.Debug("Client Watcher", "removed file:", event.Name)
-					go syncAll()
+				if event.Op == fsnotify.Write {
+					if strings.HasSuffix(event.Name, "clients.db") {
+						go syncAll("onDatabaseChangeDaemon")
+					}
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -168,7 +172,8 @@ func clientsDbWatcher() error {
 	return nil
 }
 
-func syncAll() error {
+func syncAll(source string) error {
+	slog.Debug("Syncing all users", "source", source)
 	fetchedUsers, err := users.FetchAllUsers()
 	if err != nil {
 		slog.Error(err.Error())
@@ -176,9 +181,21 @@ func syncAll() error {
 		return err
 	}
 
-	slog.Debug("Syncing details", "#users", len(fetchedUsers))
+	// slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
 	for _, user := range fetchedUsers {
+		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+			Callback: func(evt *event.Event) error {
+				err = bridges.SyncCallback(user.Client, evt)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return err
+				}
+				return nil
+			},
+			ID: user.Client.UserID.String(),
+		})
 		err := syncWatcher.Add(user)
 		if err != nil {
 			slog.Error(err.Error())
@@ -188,33 +205,32 @@ func syncAll() error {
 	return nil
 }
 
-func SyncUsers() error {
-	syncWatcher = SyncWatcher{
-		cache:    make([]id.UserID, 0),
-		wg:       &sync.WaitGroup{},
-		syncUser: Sync,
+func BootupSyncUsers() error {
+	syncWatcher = syncers.SyncWatcher{
+		Cache:    make([]id.UserID, 0),
+		Wg:       &sync.WaitGroup{},
+		SyncUser: syncers.Sync,
 	}
 
-	syncAll()
-	go clientsDbWatcher()
+	syncAll("SyncUsers")
+	go onDatabaseChangeDaemon()
 
-	syncWatcher.wg.Wait()
+	syncWatcher.Wg.Wait()
 	slog.Debug("Syncing details", "status", "completed and exiting")
 	return nil
 }
 
 func (c *Controller) AddDevice(bridgeName string) error {
-	bridge, err := (&bridges.Bridges{
-		Client: c.Client,
-	}).LookupBridgeByName(bridgeName)
-	// log.Printf("Found bridge room: %s\n", bridge.RoomID)
-
+	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
 		return err
 	}
 
-	err = bridge.AddDevice()
+	err = bridges.AddDevice(c.Client, bridgeCfg)
 	if err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
@@ -230,150 +246,283 @@ func (c *Controller) AddBridges() error {
 	bridgeConfs := conf.Bridges
 
 	for _, confBridge := range bridgeConfs {
-		slog.Debug("Adding bridge", "name", confBridge.Name)
-
-		bridge := bridges.Bridges{
-			BridgeConfig: confBridge,
-			Client:       c.Client,
-		}
-		roomId, err := bridge.JoinManagementRooms()
+		err := bridges.AddBridge(c.Client, confBridge)
 		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
 			return err
 		}
-		bridge.RoomID = &roomId
-
-		if err := bridge.Clear(); err != nil {
-			return err
-		}
-		slog.Debug("Bridge rooms cleared", "name", bridge.BridgeConfig.BotName)
-
-		if err := bridge.Save(); err != nil {
-			return err
-		}
-
-		slog.Debug("Room created", "room_id", bridge.RoomID)
 	}
 
 	return nil
 
 }
 
-// !Danger if room already exist, this won't fail but would create a failed room
-// !Have something that records all existing rooms into a db at start
-func createContactRoom(room rooms.Rooms, bridgeName, contact, deviceId string) (*id.RoomID, error) {
-	// cfg, err := configs.GetConf()
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	debug.PrintStack()
-	// 	return nil, err
-	// }
-	// contactUsername, err := cfg.FormatUsername(bridgeName, contact)
-	// deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
-	// slog.Debug("Bridges", "contactusername", contactUsername, "deviceusername", deviceIdUsername)
-
-	bridge, err := (&bridges.Bridges{
-		Client: room.Client,
-	}).LookupBridgeByName(bridgeName)
-	if err != nil {
-		return nil, err
-	}
-
-	botUsername := bridge.BridgeConfig.BotName
-	slog.Debug("Bridges", "Botusername", botUsername)
-
-	roomId, err := room.CreateRoom([]id.UserID{
-		id.UserID(contact),
-		id.UserID(deviceId),
-		id.UserID(botUsername),
-	}, false)
-
+func findTopicRooms(client *mautrix.Client, identifier string, deviceId *id.UserID) (*id.RoomID, error) {
+	resp, err := client.JoinedRooms(context.Background())
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	err = room.Save(
-		bridgeName,
-		contact,
-		deviceId,
-		false,
-	)
+	joinedRooms := resp.JoinedRooms
+	slog.Debug("search info", "#rooms", len(joinedRooms))
 
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
+	var roomId *id.RoomID
+	var wg sync.WaitGroup
+	wg.Add(len(joinedRooms))
+
+	for _, room := range joinedRooms {
+		go func(room *id.RoomID) {
+			if roomId != nil {
+				return
+			}
+			defer wg.Done()
+			resp, err := client.JoinedMembers(context.Background(), *room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			members := resp.Joined
+			if len(members) < 4 || len(members) > 5 {
+				return
+			}
+
+			if _, ok := members[*deviceId]; !ok {
+				return
+			}
+
+			topic, err := rooms.GetRoomTopic(client, room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+			extracted := utils.ExtractE164Contact(topic)
+			if len(extracted) < 1 {
+				return
+			}
+
+			if extracted == identifier {
+				roomId = room
+				slog.Debug("Topic room found", "roomId", roomId)
+			}
+		}(&room)
 	}
-
-	return &roomId, nil
-
+	wg.Wait()
+	return roomId, nil
 }
 
-func (c *Controller) SendMessage(bridgeName, deviceId, contact, message string) (*id.RoomID, error) {
-	// contact = strings.ReplaceAll(contact, "+", "")
-	cfg, err := configs.GetConf()
+func findContactRooms(client *mautrix.Client, identifier, deviceId *id.UserID) (*id.RoomID, error) {
+	resp, err := client.JoinedRooms(context.Background())
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	contactUsername, err := cfg.FormatUsername(bridgeName, contact)
+	joinedRooms := resp.JoinedRooms
+
+	var roomId *id.RoomID
+	var wg sync.WaitGroup
+	wg.Add(len(joinedRooms))
+	for _, room := range joinedRooms {
+		go func(room *id.RoomID) {
+			if roomId != nil {
+				return
+			}
+
+			defer wg.Done()
+
+			resp, err := client.JoinedMembers(context.Background(), *room)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+
+			if _, ok := resp.Joined[*deviceId]; !ok {
+				return
+			}
+
+			if _, ok := resp.Joined[*identifier]; !ok {
+				return
+			}
+
+			if len(resp.Joined) < 3 || len(resp.Joined) > 4 {
+				return
+			}
+			roomId = room
+		}(&room)
+	}
+	wg.Wait()
+	return roomId, nil
+}
+
+func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string) (*id.RoomID, error) {
+	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
+
+	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
-
-	deviceIdUsername, err := cfg.FormatUsername(bridgeName, deviceId)
-	if err != nil {
+	identifier, err := configs.FormatUsername(bridgeName, receiver)
+	if err != nil && err != sql.ErrNoRows {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	roomIdStr, err := users.FetchMessageContact(
+	deviceIdTemplate := strings.ReplaceAll(bridgeCfg.UsernameTemplate, "{{.}}", deviceId)
+	formattedDeviceId := id.NewUserID(deviceIdTemplate, c.Client.UserID.Homeserver())
+
+	roomId, err := noisyRoomIdRequest(
 		c.Client,
-		deviceIdUsername,
-		bridgeName,
-		contactUsername,
+		bridgeCfg,
+		&formattedDeviceId,
+		(*id.UserID)(identifier),
+		receiver,
+		deviceId,
 	)
 
 	if err != nil {
 		slog.Error(err.Error())
-		debug.PrintStack()
 		return nil, err
 	}
 
-	var roomId id.RoomID
-	room := rooms.Rooms{
-		Client: c.Client,
-		ID:     nil,
+	if roomId == nil {
+		err := fmt.Errorf("Room empty for conversation, this is wrong! clientID=%s", c.Client.UserID)
+		slog.Error(err.Error())
+		return nil, err
 	}
 
-	if roomIdStr == nil {
-		slog.Debug("Creating contact room!")
-		_roomId, err := createContactRoom(room, bridgeName, contactUsername, deviceIdUsername)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
-		}
-		roomId = *_roomId
-	} else {
-		roomId = id.RoomID(*roomIdStr)
-	}
-	room.ID = &roomId
-
-	err = room.SendMessage(message)
+	err = rooms.SendMessage(c.Client, *roomId, message)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	return room.ID, nil
+	return roomId, nil
+}
+
+func noisyRoomIdRequest(
+	client *mautrix.Client,
+	bridgeCfg *configs.BridgeConfig,
+	formattedDeviceId,
+	identifier *id.UserID,
+	receiver,
+	deviceId string,
+) (*id.RoomID, error) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	callbackEventId := bridgeCfg.Name + receiver
+	// callbackEventType := func() string {
+	// 	switch bridgeCfg.Type {
+	// 	case "room":
+	// 	case "topic":
+	// 		return "m.room.member"
+	// 	case "contact":
+	// 		return "m.room.message"
+	// 	}
+	// 	return ""
+	// }()
+	// if len(callbackEventType) < 1 {
+	// 	return nil, fmt.Errorf("Invalid type for callback: %s\n", bridgeCfg.Type)
+	// }
+
+	var roomId *id.RoomID
+	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+		ID:        callbackEventId,
+		EventType: "m.room.message",
+		Callback: func(evt *event.Event) error {
+			// switch bridgeCfg.Type {
+			// case "room":
+			// 	_roomId, err := isRoomCallback(client, identifier, formattedDeviceId)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// case "topic":
+			// 	_roomId, err := isTopicCallback(client, receiver, formattedDeviceId)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// case "contact":
+			// 	slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+			// 	_roomId, err := isContactCallback(client, evt, &receiver)
+			// 	if err != nil {
+			// 		slog.Error(err.Error())
+			// 		return err
+			// 	}
+			// 	roomId = _roomId
+			// }
+
+			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+			_roomId, err := isContactCallback(client, evt, &receiver)
+			if err != nil {
+				slog.Error(err.Error())
+				return err
+			}
+			roomId = _roomId
+			defer wg.Done()
+
+			syncers.UnRegisterSyncMessageListener(callbackEventId)
+
+			return nil
+		},
+	})
+
+	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	wg.Wait()
+	return roomId, nil
+}
+
+func isRoomCallback(client *mautrix.Client, identifier, formattedDeviceId *id.UserID) (*id.RoomID, error) {
+	roomId, err := findContactRooms(client, identifier, formattedDeviceId)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return roomId, nil
+}
+
+func isTopicCallback(client *mautrix.Client, receiver string, formattedDeviceId *id.UserID) (*id.RoomID, error) {
+	roomId, err := findTopicRooms(client, receiver, formattedDeviceId)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return roomId, nil
+}
+
+func isContactCallback(client *mautrix.Client, evt *event.Event, receiver *string) (*id.RoomID, error) {
+	contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
+	if len(contactUserIds) != 1 {
+		slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
+		return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
+	}
+	err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	roomId, err := rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return roomId, nil
 }

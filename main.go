@@ -21,16 +21,18 @@ import (
 // @title ShortMesh - Client API
 // @version 1.0
 func main() {
-	var programLevel slog.LevelVar
-	programLevel.Set(slog.LevelDebug) // Set initial level to Debug
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: &programLevel, // Use the LevelVar
-	})
-	slog.SetDefault(slog.New(handler))
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelDebug, // Equivalent to enabling debug logs
+		// AddSource: true,            // Equivalent to log.Lshortfile/log.Llongfile
+	}
+
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
 	apis.SessionsCacheInit()
 
-	go cmd.SyncUsers()
+	go cmd.BootupSyncUsers()
 	go RestAPIRoutines()
 	// go rabbitmq.RabbitMQReceiver()
 

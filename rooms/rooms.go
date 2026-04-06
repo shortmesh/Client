@@ -2,53 +2,46 @@ package rooms
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"regexp"
 	"runtime/debug"
 
-	"github.com/shortmesh/core/configs"
-	"github.com/shortmesh/core/users"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
 type Rooms struct {
-	Client   *mautrix.Client
-	ID       *id.RoomID
-	IsBridge bool
-	Members  map[string]string
+	Client     *mautrix.Client
+	DbFilename string
 }
 
-func (r *Rooms) GetRoomMembers() ([]id.UserID, error) {
-	members, err := r.Client.JoinedMembers(context.Background(), *r.ID)
-
+func GetRoomTopic(client *mautrix.Client, roomId *id.RoomID) (string, error) {
+	var topicContent event.TopicEventContent
+	err := client.StateEvent(context.Background(), *roomId, event.StateTopic, "", &topicContent)
 	if err != nil {
-		return nil, err
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
 	}
-
-	var membersList []id.UserID
-	for userId := range members.Joined {
-		membersList = append(membersList, userId)
-	}
-
-	return membersList, nil
+	return topicContent.Topic, nil
 }
 
-func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botName string) (bool, error) {
+func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botUsername id.UserID) (bool, error) {
 	members, err := client.JoinedMembers(context.Background(), roomId)
 	if err != nil {
 		return false, err
 	}
 
-	isSpace, err := isSpaceRoom(client, roomId)
+	isSpace, err := IsSpaceRoom(client, roomId)
 	if err != nil {
 		return false, err
 	}
 
 	if !isSpace {
 		if len(members.Joined) == 2 {
-			botID := id.UserID(botName)
-			if _, ok := members.Joined[botID]; ok {
+			if _, ok := members.Joined[botUsername]; ok {
 				if _, ok := members.Joined[client.UserID]; ok {
 					return true, nil
 				}
@@ -59,8 +52,7 @@ func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botName string) 
 	return false, nil
 }
 
-// IsSpaceRoom checks if the given room is a space
-func isSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
+func IsSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
 	var createContent event.CreateEventContent
 
 	err := client.StateEvent(context.Background(), roomId, event.StateCreate, "", &createContent)
@@ -75,56 +67,6 @@ func isSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
 		return true, nil
 	}
 	return false, nil
-}
-
-func (r *Rooms) GetRoomInfo() (string, error) {
-	// Get room name
-	var nameContent event.RoomNameEventContent
-	err := r.Client.StateEvent(context.Background(), *r.ID, event.StateRoomName, "", &nameContent)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return "", err
-	}
-
-	return nameContent.Name, nil
-}
-
-func (r *Rooms) GetPowerLevelsUser() (int, error) {
-	var powerLevels event.PowerLevelsEventContent
-	err := r.Client.StateEvent(context.Background(), *r.ID, event.StatePowerLevels, "", &powerLevels)
-	if err != nil {
-		return -1, err
-	}
-	return powerLevels.Users[r.Client.UserID], nil
-}
-
-func (r *Rooms) GetPowerLevelsEvents() (int, error) {
-	var powerLevels event.PowerLevelsEventContent
-	err := r.Client.StateEvent(context.Background(), *r.ID, event.StatePowerLevels, "", &powerLevels)
-	if err != nil {
-		return -1, err
-	}
-	return powerLevels.Events[event.EventMessage.String()], nil
-}
-
-func (r *Rooms) GetInvites(
-	evt *event.Event,
-) error {
-	_, err := r.Client.JoinRoomByID(context.Background(), *r.ID)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	err = ParseRoomSubroutine(r.Client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	return nil
 }
 
 func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomID, error) {
@@ -159,263 +101,28 @@ func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomI
 		return "", err
 	}
 
-	r.ID = &resp.RoomID
 	return resp.RoomID, nil
 }
 
-func GetRoomDb(client *mautrix.Client) (*RoomsDB, error) {
-	roomDb := RoomsDB{
-		Username: client.UserID.Localpart(),
-		Filepath: "db/" + client.UserID.Localpart() + ".db",
-	}
-
-	err := roomDb.Init()
-	if err != nil {
-		return nil, err
-	}
-
-	return &roomDb, nil
-}
-
-func (r *Rooms) Delete() error {
-	roomsDb, err := GetRoomDb(r.Client)
+func GetRoomName(client *mautrix.Client, roomId *id.RoomID) (string, error) {
+	var nameContent event.RoomNameEventContent
+	err := client.StateEvent(context.Background(), *roomId, event.StateRoomName, "", &nameContent)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return err
+		return "", err
 	}
-
-	if err := roomsDb.Delete(r.ID.String()); err != nil {
-		slog.Error(err.Error())
-		return err
-	}
-	slog.Debug("Rooms Delete", "name", r.ID)
-
-	return nil
+	return nameContent.Name, nil
 }
 
-func (r *Rooms) Save(
-	bridgeName,
-	contactName,
-	deviceId string,
-	isBridgeBot bool,
-) error {
-	roomsDb, err := GetRoomDb(r.Client)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	if err := roomsDb.Save(r.ID.String(), bridgeName, contactName, deviceId, isBridgeBot); err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	return nil
-}
-
-func isContactRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
-	if len(members) == 4 {
-		// ? contact communication room?
-		// ? client, bridgeBot, device, some contact
-		isUser := false
-		isBridgeBot := false
-		isDevice := false
-		isContact := false
-		for _, member := range members {
-			userType, err := users.GetTypeUser(client, member)
-			if err != nil {
-				return false, err
-			}
-			slog.Debug("User type", "type", userType, "member", member)
-			if userType == -1 {
-				continue
-			}
-			switch userType {
-			case users.User:
-				isUser = true
-			case users.BridgeBot:
-				isBridgeBot = true
-			case users.Device:
-				isDevice = true
-			case users.Contact:
-				isContact = true
-			}
-		}
-
-		if isUser && isBridgeBot && isDevice && isContact {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func isBridgeBotRoom(client *mautrix.Client, members []id.UserID) (bool, error) {
-
-	if len(members) == 2 {
-		isUser := false
-		isBridgeBot := false
-		for _, member := range members {
-			userType, err := users.GetTypeUser(client, member)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return false, err
-			}
-			switch userType {
-			case users.User:
-				isUser = true
-			case users.BridgeBot:
-				isBridgeBot = true
-			}
-		}
-
-		if isUser && isBridgeBot {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func processIsContactRoom(client *mautrix.Client, room Rooms, members []id.UserID) error {
-	var bridgeName string
-	var contactName id.UserID
-	var deviceName id.UserID
-	for _, member := range members {
-		userType, err := users.GetTypeUser(client, member)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-		switch userType {
-		case users.BridgeBot:
-			cfg, err := configs.GetConf()
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return err
-			}
-
-			for _, bridgeConf := range cfg.Bridges {
-				if bridgeConf.BotName == member.String() {
-					bridgeName = bridgeConf.Name
-					break
-				}
-			}
-		case users.Contact:
-			contactName = member
-		case users.Device:
-			deviceName = member
-		}
-	}
-
-	err := room.Save(bridgeName, contactName.String(), deviceName.String(), false)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	slog.Debug("Room saved", "bridge_name", bridgeName, "contact_name", contactName, "device_name", deviceName)
-	return nil
-
-}
-
-func processIsBotRoom(client *mautrix.Client, room Rooms, members []id.UserID) error {
-	var bridgeName string
-	var deviceName id.UserID
-	for _, member := range members {
-		userType, err := users.GetTypeUser(client, member)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return err
-		}
-		switch userType {
-		case users.BridgeBot:
-			cfg, err := configs.GetConf()
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-				return err
-			}
-
-			for _, bridgeConf := range cfg.Bridges {
-				if bridgeConf.BotName == member.String() {
-					bridgeName = bridgeConf.Name
-					break
-				}
-			}
-		case users.Device:
-			deviceName = member
-		}
-	}
-
-	err := room.Save(bridgeName, "", deviceName.String(), true)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	slog.Debug("Room parsed and saved bot room", "BridgeName", bridgeName, "deviceName", deviceName)
-	return nil
-
-}
-
-func ParseRoomSubroutine(client *mautrix.Client) error {
-	ctx := context.Background()
-	rooms, err := client.JoinedRooms(ctx)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	slog.Debug("User details", "num_rooms", len(rooms.JoinedRooms))
-
-	for _, roomId := range rooms.JoinedRooms {
-		room := Rooms{
-			Client: client,
-			ID:     &roomId,
-		}
-		members, err := room.GetRoomMembers()
-
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-		slog.Debug("User details", "members_in_room", len(members))
-
-		isContactRoom, err := isContactRoom(client, members)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-		}
-
-		if isContactRoom {
-			err := processIsContactRoom(client, room, members)
-			if err != nil {
-				slog.Error(err.Error())
-				debug.PrintStack()
-			}
-			return nil
-		}
-	}
-
-	return nil
-}
-
-func (r *Rooms) SendMessage(message string) error {
+func SendMessage(client *mautrix.Client, roomId id.RoomID, message string) error {
+	slog.Debug("SendMessage", "msg", message, "roomId", roomId)
 	ctx := context.Background()
 	content := event.MessageEventContent{
 		MsgType: event.MsgText,
 		Body:    message,
 	}
-	_, err := r.Client.SendMessageEvent(ctx, *r.ID, event.EventMessage, content)
+	_, err := client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -423,4 +130,13 @@ func (r *Rooms) SendMessage(message string) error {
 	}
 
 	return nil
+}
+
+func ExtractMatrixRoomID(text string) (*id.RoomID, error) {
+	re := regexp.MustCompile(`!([\w-]+):[\w.-]+`)
+	match := re.FindString(text)
+	if match == "" {
+		return nil, fmt.Errorf("no Matrix room ID found in text")
+	}
+	return (*id.RoomID)(&match), nil
 }

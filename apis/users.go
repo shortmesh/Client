@@ -63,7 +63,7 @@ func Delete(c *gin.Context) {
 		return
 	}
 
-	err = utils.DeleteFilesWithPattern("./db", fmt.Sprintf("%s*.db*", client.UserID.Localpart()))
+	err = utils.DeleteFilesWithPattern("./db", fmt.Sprintf("%s*.db*", client.UserID))
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

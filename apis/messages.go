@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shortmesh/core/cmd"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/users"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
@@ -78,6 +79,12 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 	deviceId := c.Param("deviceId")
+
+	isDevice, err := devices.IsDevice(client, deviceId)
+	if err != nil || !isDevice {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Something wasn't found"})
+		return
+	}
 
 	_, err = (&cmd.Controller{
 		Client: client,

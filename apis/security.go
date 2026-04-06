@@ -51,16 +51,16 @@ func VerifyRequest(id, method, path, timestamp, nonce, body, receivedSignature s
 	h := hmac.New(sha256.New, []byte(conf.MAS_CLIENT_SECRET))
 	h.Write([]byte(canonicalString))
 	expectedSignature := hex.EncodeToString(h.Sum(nil))
-	slog.Debug("Verify request",
-		"id", id,
-		"method", method,
-		"path", path,
-		"timestamp", timestamp,
-		"nonce", nonce,
-		"body", body,
-		"signature", expectedSignature,
-		"received", receivedSignature,
-	)
+	// slog.Debug("Verify request",
+	// 	"id", id,
+	// 	"method", method,
+	// 	"path", path,
+	// 	"timestamp", timestamp,
+	// 	"nonce", nonce,
+	// 	"body", body,
+	// 	"signature", expectedSignature,
+	// 	"received", receivedSignature,
+	// )
 
 	return hmac.Equal([]byte(expectedSignature), []byte(receivedSignature)), nil
 }

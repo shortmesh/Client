@@ -16,8 +16,8 @@ type Devices struct {
 
 func GetDeviceDB(client *mautrix.Client) (*DeviceDB, error) {
 	deviceDb := DeviceDB{
-		Username: client.UserID.Localpart(),
-		Filepath: "db/" + client.UserID.Localpart() + ".db",
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
 	}
 	err := deviceDb.Init()
 	if err != nil {
@@ -27,6 +27,7 @@ func GetDeviceDB(client *mautrix.Client) (*DeviceDB, error) {
 }
 
 func IsDevice(client *mautrix.Client, deviceId string) (bool, error) {
+	slog.Debug("IsDevice", "deviceId", deviceId)
 	deviceDb, err := GetDeviceDB(client)
 	devices, err := deviceDb.fetchDevice(deviceId)
 	if err != nil {
