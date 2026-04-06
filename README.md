@@ -179,6 +179,8 @@ server {
 
     client_max_body_size 50M;
 
+    # IMPORTANT: MAS SHOULD COME BEFORE SYNAPSE FOR REGEX NGINX REASONS
+
     # MAS-backed client auth routes
     location ~ ^/_matrix/client/(v3|v1)/(login|logout|refresh|auth_metadata|capabilities) {
         proxy_pass http://127.0.0.1:8080;
@@ -221,6 +223,22 @@ server {
 ### MAS
 **configuration**
 - [Setup](https://willlewis.co.uk/blog/posts/stronger-matrix-auth-mas-synapse-docker-compose/)
+
+```yaml
+services:
+  matrix-auth-service:
+    image: ghcr.io/element-hq/matrix-authentication-service:latest
+    container_name: matrix-auth-service
+    environment:
+      - MAS_CONFIG=/app/config/config.yaml
+    ports:
+      - "8080:8080"
+      - "8081:8081" # health endpoint
+    volumes:
+      - ./config.yaml:/app/config/config.yaml:ro
+    restart: unless-stopped
+    network_mode: "host"
+```
 
 **config.yaml**
 ```yaml
