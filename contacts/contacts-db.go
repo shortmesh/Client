@@ -64,3 +64,26 @@ func (c *ContactsDB) insert(name, username string) error {
 	}
 	return nil
 }
+
+func (c *ContactsDB) fetchName(username string) (*[]string, error) {
+	stmt, err := c.connection.Prepare("select name from contacts where username = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	var names []string
+
+	rows, err := stmt.Query(username)
+	for rows.Next() {
+		var name string
+		err = rows.Scan(&name)
+		if err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return &names, nil
+
+}

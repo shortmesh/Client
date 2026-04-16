@@ -12,6 +12,13 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+type RoomType int
+
+const (
+	ManagementRoomType RoomType = iota
+	ContactRoomType
+)
+
 type Rooms struct {
 	Client     *mautrix.Client
 	DbFilename string
@@ -26,47 +33,6 @@ func GetRoomTopic(client *mautrix.Client, roomId *id.RoomID) (string, error) {
 		return "", err
 	}
 	return topicContent.Topic, nil
-}
-
-func IsManagementRoom(client *mautrix.Client, roomId id.RoomID, botUsername id.UserID) (bool, error) {
-	members, err := client.JoinedMembers(context.Background(), roomId)
-	if err != nil {
-		return false, err
-	}
-
-	isSpace, err := IsSpaceRoom(client, roomId)
-	if err != nil {
-		return false, err
-	}
-
-	if !isSpace {
-		if len(members.Joined) == 2 {
-			if _, ok := members.Joined[botUsername]; ok {
-				if _, ok := members.Joined[client.UserID]; ok {
-					return true, nil
-				}
-			}
-		}
-	}
-
-	return false, nil
-}
-
-func IsSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
-	var createContent event.CreateEventContent
-
-	err := client.StateEvent(context.Background(), roomId, event.StateCreate, "", &createContent)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return false, err
-	}
-
-	// Check if "type" field is set to "m.space"
-	if createContent.Type == "m.space" {
-		return true, nil
-	}
-	return false, nil
 }
 
 func (r *Rooms) CreateRoom(invites []id.UserID, isManagementRoom bool) (id.RoomID, error) {
