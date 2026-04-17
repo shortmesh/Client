@@ -1,6 +1,8 @@
 package contacts
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -48,7 +50,14 @@ func FetchContact(client *mautrix.Client, username *id.UserID) (*Contacts, error
 
 	names, err := contactsDb.fetchName(username.String())
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
+	}
+
+	if len(*names) < 1 {
+		return nil, nil
 	}
 
 	if len(*names) > 1 {
@@ -60,9 +69,32 @@ func FetchContact(client *mautrix.Client, username *id.UserID) (*Contacts, error
 	return &Contacts{Name: name, Username: username}, nil
 }
 
+func findBot(client *mautrix.Client, roomId *id.RoomID) (*configs.BridgeConfig, error) {
+	resp, err := client.JoinedMembers(context.Background(), *roomId)
+	if err != nil {
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for member := range resp.Joined {
+		bridgeCfg, err := configs.GetBridgeConfigByBotname(member.String())
+		if err != nil {
+			continue
+		}
+
+		if bridgeCfg != nil {
+			return bridgeCfg, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	slog.Debug("Contact message", "sender", evt.Sender)
-	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
+
+	bridgeCfg, err := findBot(client, &evt.RoomID)
+	// bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
 	if err != nil {
 		debug.PrintStack()
 		return err
@@ -78,6 +110,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return err
 	}
 	if !ok {
+		slog.Error("Contact message - not contact", "sender", evt.Sender, "msg", evt.Content.AsMessage().Body)
 		return nil
 	}
 
