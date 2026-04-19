@@ -201,8 +201,6 @@ type IncomingMessagePayload struct {
 }
 
 func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*string, error) {
-	var payload = ""
-
 	from := evt.Sender.String()
 	if contact != nil {
 		from = contact.Name
@@ -241,7 +239,7 @@ func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*s
 		debug.PrintStack()
 		return nil, err
 	}
-	payload = string(payloadBytes)
+	payload := string(payloadBytes)
 	return &payload, nil
 }
 
