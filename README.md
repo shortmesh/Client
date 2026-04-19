@@ -5,7 +5,8 @@
 - [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
 - [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
 - [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
-- [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
+- [Adding devices queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
+- [Incoming messages queue](https://github.com/shortmesh/Core/blob/master/README.md#incoming-messages-queue)
 - [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
 - [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
     - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
@@ -74,12 +75,40 @@ swag init
 ```
 > [host]/docs/index.html
 
-## Messaging Queue
-The incoming messages are routed to the queue:
+## Adding devices Queue
+The incoming messages for adding devices routed to the queue:
 ```yaml
 exchange: "bridges.topic"
 binding key: "bridges.topic.add_new_device"
-queue name: userId
+queue name: {userId}_add_new_device
+```
+
+## Incoming messages Queue
+The incoming messages are routed to the queue:
+```yaml
+exchange: "contacts.topic"
+binding key: "contacts.topic.incoming_messages"
+queue name: {userId}_incoming_messages
+```
+
+### Payload Text|Media
+```json
+{
+    "IsContact": true|false,
+    "Type": "",
+    "From": "",
+    "To": "",
+    "Media": {
+        "Content": bytes,
+        "Info": {
+            "Size": 0 # float64 (Double),
+            "MimeType": "",
+            "Width": 0, 
+            "Height": 0,
+            "BlurHash": ""
+        }
+    }
+}
 ```
 
 ## Notes
@@ -185,3 +214,6 @@ account:
   account_deactivation_allowed: true
   login_with_email_allowed: true
 ```
+
+### TBD
+- When the user logs in on new device, all synced devices get logged out
