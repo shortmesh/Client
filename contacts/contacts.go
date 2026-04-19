@@ -215,7 +215,7 @@ func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*s
 		Message:   evt.Content.AsMessage().Body,
 	}
 
-	if message.GetFile() != nil {
+	if message.File != nil {
 		payloadBytes, err := downloadContent(client, evt)
 		if err != nil {
 			slog.Error(err.Error())
