@@ -219,3 +219,27 @@ func FormatUsername(bridgeName, username string) (*string, error) {
 
 	return &formattedUsername, nil
 }
+
+func ExtractComponentByTemplates(template, input string) (string, error) {
+	// 1. Escape special characters in the template
+	escapedTemplate := regexp.QuoteMeta(template)
+
+	// 2. Replace the placeholder with a capture group (.*)
+	// We use strings.Replace to find the literal "{{.}}"
+	pattern := strings.Replace(escapedTemplate, `\{\{\.\}\}`, `(.*)`, 1)
+
+	// 3. Compile the regex
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile template: %v", err)
+	}
+
+	// 4. Find the submatch
+	matches := re.FindStringSubmatch(input)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("no match found for template in input")
+	}
+
+	// matches[0] is the full string, matches[1] is our capture group
+	return matches[1], nil
+}

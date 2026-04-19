@@ -10,6 +10,7 @@ import (
 
 	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
+	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rabbitmq"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -91,13 +92,6 @@ func findBot(client *mautrix.Client, roomId *id.RoomID) (*configs.BridgeConfig, 
 	return nil, nil
 }
 
-type IncomingMessagePayload struct {
-	IsContact bool
-	From      string
-	To        string
-	Message   string
-}
-
 func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	bridgeCfg, err := findBot(client, &evt.RoomID)
 	if err != nil {
@@ -114,6 +108,36 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
+	// ignore if device
+	isBridgeUser, err := configs.CheckUserBridgeBotTemplate(*bridgeCfg, evt.Sender.String())
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if isBridgeUser {
+		possibleUsername, err := configs.ExtractComponentByTemplates(
+			bridgeCfg.UsernameTemplate,
+			evt.Sender.Localpart(),
+		)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		ok, err := devices.IsDevice(client, possibleUsername)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return err
+		}
+		if ok {
+			slog.Info("Incoming message", "status", "ignoring", "reason", "device", "devicveId", evt.Sender)
+			return nil
+		}
+	}
+
 	username := evt.Sender
 	contact, err := isContactRoom(client, &username)
 	if err != nil {
@@ -125,6 +149,10 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	if err != nil {
 		slog.Error(err.Error())
 		return err
+	}
+
+	if payload == nil {
+		return nil
 	}
 
 	exchange := RMQExchanges{}
@@ -151,16 +179,60 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	return nil
 }
 
+type IncomingMessagePayloadMediaInfo struct {
+	Size     float64
+	MimeType string
+	Width    int
+	Height   int
+	BlurHash string
+}
+type IncomingMessagePayloadMedia struct {
+	Content []byte
+	Info    IncomingMessagePayloadMediaInfo
+}
+
+type IncomingMessagePayload struct {
+	IsContact bool
+	Type      string
+	From      string
+	To        string
+	Message   string
+	Media     IncomingMessagePayloadMedia
+}
+
 func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*string, error) {
+	var payload = ""
+
 	from := evt.Sender.String()
 	if contact != nil {
 		from = contact.Name
 	}
+
+	message := evt.Content.AsMessage()
 	incomingMessagePayload := IncomingMessagePayload{
 		IsContact: contact != nil,
+		Type:      string(message.MsgType),
 		From:      from,
 		To:        client.UserID.String(),
 		Message:   evt.Content.AsMessage().Body,
+	}
+
+	if message.GetFile() != nil {
+		payloadBytes, err := downloadContent(client, evt)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		incomingMessagePayload.Media = IncomingMessagePayloadMedia{
+			Content: payloadBytes,
+			Info: IncomingMessagePayloadMediaInfo{
+				Size:     float64(message.Info.Size),
+				MimeType: message.Info.MimeType,
+				Width:    message.Info.Width,
+				Height:   message.Info.Height,
+				BlurHash: message.Info.Blurhash,
+			},
+		}
 	}
 
 	payloadBytes, err := json.Marshal(incomingMessagePayload)
@@ -169,7 +241,7 @@ func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*s
 		debug.PrintStack()
 		return nil, err
 	}
-	payload := string(payloadBytes)
+	payload = string(payloadBytes)
 	return &payload, nil
 }
 
@@ -181,4 +253,17 @@ func isContactRoom(client *mautrix.Client, username *id.UserID) (*Contacts, erro
 	}
 
 	return contacts, nil
+}
+
+func downloadContent(client *mautrix.Client, evt *event.Event) ([]byte, error) {
+	url := string(evt.Content.AsMessage().File.URL)
+	slog.Debug("Downloading image", "url", url)
+
+	contentUrl, err := id.ParseContentURI(url)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	return client.DownloadBytes(context.Background(), contentUrl)
 }
