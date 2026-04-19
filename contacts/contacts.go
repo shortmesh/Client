@@ -3,6 +3,7 @@ package contacts
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -90,11 +91,15 @@ func findBot(client *mautrix.Client, roomId *id.RoomID) (*configs.BridgeConfig, 
 	return nil, nil
 }
 
-func SyncCallback(client *mautrix.Client, evt *event.Event) error {
-	slog.Debug("Contact message", "sender", evt.Sender)
+type IncomingMessagePayload struct {
+	IsContact bool
+	From      string
+	To        string
+	Message   string
+}
 
+func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	bridgeCfg, err := findBot(client, &evt.RoomID)
-	// bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
 	if err != nil {
 		debug.PrintStack()
 		return err
@@ -103,31 +108,40 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
+	// ignore bot messages
+	if bridgeCfg.BotName == evt.Sender.String() {
+		slog.Info("Incoming message", "status", "ignoring", "reason", "bot", "botName", evt.Sender)
+		return nil
+	}
+
 	username := evt.Sender
-	ok, err := isContactRoom(client, &username)
+	contact, err := isContactRoom(client, &username)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
 	}
-	if !ok {
-		slog.Error("Contact message - not contact", "sender", evt.Sender, "msg", evt.Content.AsMessage().Body)
-		return nil
+
+	payload, err := getPayload(client, evt, contact)
+	if err != nil {
+		slog.Error(err.Error())
+		return err
 	}
 
-	message := evt.Content.AsMessage().Body
 	exchange := RMQExchanges{}
 	defaults.Set(&exchange)
 
 	bindingKey := RMQBindingKeys{}
 	defaults.Set(&bindingKey)
 
-	slog.Debug("Contact message", "msg", message)
+	slog.Debug("Contact message", "payload", payload)
 
+	queueName := client.UserID.String() + "_incoming_messages"
 	err = rabbitmq.Sender(
 		client,
-		message,
+		*payload,
 		exchange.IncomingMessage,
 		bindingKey.IncomingMessage,
+		queueName,
 	)
 	if err != nil {
 		slog.Error(err.Error())
@@ -135,18 +149,36 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	}
 
 	return nil
-
 }
 
-func isContactRoom(client *mautrix.Client, username *id.UserID) (bool, error) {
+func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*string, error) {
+	from := evt.Sender.String()
+	if contact != nil {
+		from = contact.Name
+	}
+	incomingMessagePayload := IncomingMessagePayload{
+		IsContact: contact != nil,
+		From:      from,
+		To:        client.UserID.String(),
+		Message:   evt.Content.AsMessage().Body,
+	}
+
+	payloadBytes, err := json.Marshal(incomingMessagePayload)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	payload := string(payloadBytes)
+	return &payload, nil
+}
+
+func isContactRoom(client *mautrix.Client, username *id.UserID) (*Contacts, error) {
 	contacts, err := FetchContact(client, username)
 	if err != nil {
 		debug.PrintStack()
-		return false, err
+		return nil, err
 	}
 
-	if contacts == nil {
-		return false, nil
-	}
-	return true, nil
+	return contacts, nil
 }

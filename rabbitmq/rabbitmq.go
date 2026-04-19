@@ -68,7 +68,8 @@ func DeleteQueue(client *mautrix.Client, queueName string) error {
 func start(
 	client *mautrix.Client,
 	exchange,
-	bindingKey string,
+	bindingKey,
+	queueName string,
 ) (*amqp.Connection, *amqp.Channel, error) {
 	slog.Debug("RabbitMQ starting", "username", client.UserID.String())
 	conn, err := getConnection()
@@ -101,12 +102,12 @@ func start(
 	}
 
 	q, err := ch.QueueDeclare(
-		client.UserID.Localpart(), // name
-		false,                     // durable
-		false,                     // delete when unused
-		false,                     // exclusive
-		false,                     // no-wait
-		nil,                       // arguments
+		queueName, // name
+		false,     // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
 	)
 	if err != nil {
 		slog.Error(err.Error())

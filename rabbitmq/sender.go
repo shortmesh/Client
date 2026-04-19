@@ -10,8 +10,8 @@ import (
 	"maunium.net/go/mautrix"
 )
 
-func Sender(client *mautrix.Client, message string, exchange, routingKey string) error {
-	conn, ch, err := start(client, exchange, routingKey)
+func Sender(client *mautrix.Client, message string, exchange, routingKey, queueName string) error {
+	conn, ch, err := start(client, exchange, routingKey, queueName)
 	if err != nil {
 		slog.Error(err.Error())
 		return err

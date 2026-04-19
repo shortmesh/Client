@@ -101,11 +101,13 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		bindingKey := RMQBindingKeys{}
 		defaults.Set(&bindingKey)
 
+		queueName := client.UserID.String() + "_add_new_device"
 		err := rabbitmq.Sender(
 			client,
 			message,
 			exchange.AddNewDevice,
 			bindingKey.AddNewDevice,
+			queueName,
 		)
 		if err != nil {
 			slog.Error(err.Error())
