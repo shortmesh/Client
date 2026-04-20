@@ -1,22 +1,19 @@
 # ShortMesh Client
 
 ## Contents
-- [Description](https://github.com/shortmesh/Core/blob/master/README.md#description)
-- [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
-- [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
+- [Description](#description)
+- [Requirements](#requirements)
+- [Running](#running)
 - [Docker Setup](#docker-setup)
-- [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
-- [Messaging queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
-
-- Installations
-
-- Bridge setups
-
-- [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
-- [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
-    - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
-    - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
-    - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
+- [API docs](#api-docs)
+- [Adding devices queue](#messaging-queue)
+- [Incoming messages queue](#incoming-messages-queue)
+- [Bridge setups](#bridge-setups)
+- [Schemas](#schemas)
+- [Notes](#notes)
+    - [Postgress issues](#postgres-issues)
+    - [Synapse](#snaypse)
+    - [MAS](#mas)
 
 ## Installation
 
@@ -156,12 +153,40 @@ swag init
 ```
 > [host]/docs/index.html
 
-## Messaging Queue
-The incoming messages are routed to the queue:
+## Adding devices Queue
+The incoming messages for adding devices routed to the queue:
 ```yaml
 exchange: "bridges.topic"
 binding key: "bridges.topic.add_new_device"
-queue name: userId
+queue name: {userId}_add_new_device
+```
+
+## Incoming messages Queue
+The incoming messages are routed to the queue:
+```yaml
+exchange: "contacts.topic"
+binding key: "contacts.topic.incoming_messages"
+queue name: {userId}_incoming_messages
+```
+
+### Payload Text|Media
+```json
+{
+    "IsContact": true|false,
+    "Type": "",
+    "From": "",
+    "To": "",
+    "Media": {
+        "Content": bytes,
+        "Info": {
+            "Size": 0 # float64 (Double),
+            "MimeType": "",
+            "Width": 0, 
+            "Height": 0,
+            "BlurHash": ""
+        }
+    }
+}
 ```
 
 ## Notes
@@ -285,3 +310,6 @@ account:
   account_deactivation_allowed: true
   login_with_email_allowed: true
 ```
+
+### TBD
+- When the user logs in on new device, all synced devices get logged out

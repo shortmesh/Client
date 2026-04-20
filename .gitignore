@@ -5,3 +5,4 @@ matrix-api-go
 venv/*
 venv
 docs/*
+report.txt

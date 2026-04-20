@@ -31,35 +31,6 @@ type RMQBindingKeys struct {
 	AddNewDevice string `default:"bridges.topic.add_new_device"`
 }
 
-func ProcessIncomingMessages(client *mautrix.Client, evt *event.Event) error {
-	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
-	if err != nil {
-		debug.PrintStack()
-		return err
-	}
-	if bridgeCfg == nil {
-		return nil
-	}
-
-	ok, err := rooms.IsManagementRoom(client, evt.RoomID, id.UserID(bridgeCfg.BotName))
-	if err != nil {
-		debug.PrintStack()
-		return err
-	}
-
-	if !ok {
-		return nil
-	}
-
-	err = processIncomingBotMessage(client, evt, bridgeCfg)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-	return nil
-}
-
 func StartConversation(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
@@ -188,13 +159,76 @@ func JoinManagementRooms(client *mautrix.Client, bridgeCfg *configs.BridgeConfig
 }
 
 func SyncCallback(client *mautrix.Client, evt *event.Event) error {
-	err := ProcessIncomingMessages(client, evt)
+	bridgeCfg, err := configs.GetBridgeConfigByBotname(evt.Sender.String())
+	if err != nil {
+		debug.PrintStack()
+		return err
+	}
+	if bridgeCfg == nil {
+		return nil
+	}
+
+	botUsername := id.UserID(bridgeCfg.BotName)
+	ok, err := isManagementRoom(client, evt.RoomID, botUsername)
+	if err != nil {
+		slog.Error(err.Error())
+		return err
+	}
+
+	if !ok {
+		return nil
+	}
+
+	err = processIncomingBotMessage(client, evt, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return err
 	}
+
 	return nil
+
+}
+
+func isManagementRoom(client *mautrix.Client, roomId id.RoomID, botUsername id.UserID) (bool, error) {
+	members, err := client.JoinedMembers(context.Background(), roomId)
+	if err != nil {
+		return false, err
+	}
+
+	isSpace, err := isSpaceRoom(client, roomId)
+	if err != nil {
+		return false, err
+	}
+
+	if !isSpace {
+		if len(members.Joined) == 2 {
+			if _, ok := members.Joined[botUsername]; ok {
+				if _, ok := members.Joined[client.UserID]; ok {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func isSpaceRoom(client *mautrix.Client, roomId id.RoomID) (bool, error) {
+	var createContent event.CreateEventContent
+
+	err := client.StateEvent(context.Background(), roomId, event.StateCreate, "", &createContent)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	// Check if "type" field is set to "m.space"
+	if createContent.Type == "m.space" {
+		return true, nil
+	}
+	return false, nil
 }
 
 func GetBotManagementRoom(client *mautrix.Client, botUsername *id.UserID) (*id.RoomID, error) {
@@ -212,7 +246,7 @@ func GetBotManagementRoom(client *mautrix.Client, botUsername *id.UserID) (*id.R
 		}
 
 		members := slices.Collect(maps.Keys(resp.Joined))
-		ok, err := rooms.IsManagementRoom(client, roomId, *botUsername)
+		ok, err := isManagementRoom(client, roomId, *botUsername)
 		if err != nil {
 			debug.PrintStack()
 			return nil, err
