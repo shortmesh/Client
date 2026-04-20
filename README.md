@@ -1,17 +1,39 @@
 # ShortMesh Client
 
 ## Contents
-- [Description](https://github.com/shortmesh/Core/blob/master/README.md#description)
-- [Requirements](https://github.com/shortmesh/Core/blob/master/README.md#requirements)
-- [Running](https://github.com/shortmesh/Core/blob/master/README.md#running)
-- [API docs](https://github.com/shortmesh/Core/blob/master/README.md#api-docs)
-- [Adding devices queue](https://github.com/shortmesh/Core/blob/master/README.md#messaging-queue)
-- [Incoming messages queue](https://github.com/shortmesh/Core/blob/master/README.md#incoming-messages-queue)
-- [Schemas](https://github.com/shortmesh/Core/blob/master/README.md#schemas)
-- [Notes](https://github.com/shortmesh/Core/blob/master/README.md#notes)
-    - [Postgress issues](https://github.com/shortmesh/Core/blob/master/README.md#postgres-issues)
-    - [Synapse](https://github.com/shortmesh/Core/blob/master/README.md#snaypse)
-    - [MAS](https://github.com/shortmesh/Core/blob/master/README.md#mas)
+- [Description](#description)
+- [Requirements](#requirements)
+- [Running](#running)
+- [Docker Setup](#docker-setup)
+- [API docs](#api-docs)
+- [Adding devices queue](#messaging-queue)
+- [Incoming messages queue](#incoming-messages-queue)
+- [Bridge setups](#bridge-setups)
+- [Schemas](#schemas)
+- [Notes](#notes)
+    - [Postgress issues](#postgres-issues)
+    - [Synapse](#snaypse)
+    - [MAS](#mas)
+
+## Installation
+
+MacOS (M-series)
+```bash
+brew install libolm
+export LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
+export CPATH="/opt/homebrew/include:$CPATH"
+```
+
+## Bridge setups
+
+Configure self signing in bridge to avoid error:
+> failed to decrypt megolm event: no session with given ID found
+
+bridge.conf file:
+
+```yaml
+encryption > self_sign = true
+```
  
 ## Description
 ShortMesh Client is a Matrix protocol client  that provides messaging capabilities across multiple Matrix bridges. \
@@ -65,6 +87,62 @@ swag init
 go mod tidy
 
 go run .
+```
+
+## Docker Setup
+
+### Build and Run
+
+```bash
+# Build
+docker build -t matrix-client .
+
+# Run
+docker run -d --name matrix-client -p 8080:8080 \
+  -v $(pwd)/db:/app/db \
+  -v $(pwd)/downloads:/app/downloads \
+  -v $(pwd)/conf.yaml:/app/conf.yaml \
+  matrix-client
+
+# View logs
+docker logs -f matrix-client
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  matrix-client:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db:/app/db
+      - ./downloads:/app/downloads
+      - ./conf.yaml:/app/conf.yaml
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+    depends_on:
+      - rabbitmq
+```
+
+```bash
+docker-compose up -d
+
+# View logs
+docker-compose logs -f matrix-client
 ```
 
 ## API docs
@@ -126,6 +204,8 @@ server {
 
     client_max_body_size 50M;
 
+    # IMPORTANT: MAS SHOULD COME BEFORE SYNAPSE FOR REGEX NGINX REASONS
+
     # MAS-backed client auth routes
     location ~ ^/_matrix/client/(v3|v1)/(login|logout|refresh|auth_metadata|capabilities) {
         proxy_pass http://127.0.0.1:8080;
@@ -168,6 +248,22 @@ server {
 ### MAS
 **configuration**
 - [Setup](https://willlewis.co.uk/blog/posts/stronger-matrix-auth-mas-synapse-docker-compose/)
+
+```yaml
+services:
+  matrix-auth-service:
+    image: ghcr.io/element-hq/matrix-authentication-service:latest
+    container_name: matrix-auth-service
+    environment:
+      - MAS_CONFIG=/app/config/config.yaml
+    ports:
+      - "8080:8080"
+      - "8081:8081" # health endpoint
+    volumes:
+      - ./config.yaml:/app/config/config.yaml:ro
+    restart: unless-stopped
+    network_mode: "host"
+```
 
 **config.yaml**
 ```yaml
