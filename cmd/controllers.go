@@ -5,8 +5,11 @@ import (
 	// 	"fmt"
 
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -16,6 +19,7 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/contacts"
 	"github.com/shortmesh/core/devices"
+	"github.com/shortmesh/core/messages"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/syncers"
 	"github.com/shortmesh/core/users"
@@ -272,7 +276,14 @@ func (c *Controller) AddBridges() error {
 
 }
 
-func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string) (*id.RoomID, error) {
+func (c *Controller) SendMessage(
+	bridgeName,
+	deviceId,
+	receiver,
+	message,
+	fileExtension,
+	fileContent string,
+) (*id.RoomID, error) {
 	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
 
 	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
@@ -300,14 +311,80 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		return nil, err
 	}
 
-	err = rooms.SendMessage(c.Client, *roomId, message)
+	if fileExtension != "" && fileContent != "" {
+		filepath, err := createTmpFile(fileExtension, fileContent)
+		defer deleteFile(filepath)
+
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		err = messages.SendMediaMessage(c.Client, *roomId, *filepath, message)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+	} else {
+		err = messages.SendMessage(c.Client, *roomId, message)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+	}
+
+	return roomId, nil
+}
+
+func deleteFile(filePath *string) error {
+	if filePath == nil {
+		return nil // Or return an error if you expect it to always exist
+	}
+
+	err := os.Remove(*filePath)
+	if err != nil {
+		slog.Error("failed to delete file", "path", *filePath, "error", err)
+		return err
+	}
+
+	slog.Info("file deleted successfully", "path", *filePath)
+	return nil
+}
+
+func createTmpFile(fileExtension, fileContent string) (*string, error) {
+	data, err := base64.StdEncoding.DecodeString(fileContent)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	return roomId, nil
+	mediaDir := "media"
+	if err := os.MkdirAll(mediaDir, 0755); err != nil {
+		slog.Error("failed to create media directory", "error", err)
+		return nil, err
+	}
+
+	pattern := fmt.Sprintf("tmp-*.%s", fileExtension)
+	tmpFile, err := os.CreateTemp(mediaDir, pattern)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		os.Remove(tmpFile.Name())
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	relativePath := filepath.Join(mediaDir, filepath.Base(tmpFile.Name()))
+
+	return &relativePath, nil
 }
 
 func noisyRoomIdRequest(

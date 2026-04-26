@@ -81,23 +81,6 @@ func GetRoomName(client *mautrix.Client, roomId *id.RoomID) (string, error) {
 	return nameContent.Name, nil
 }
 
-func SendMessage(client *mautrix.Client, roomId id.RoomID, message string) error {
-	slog.Debug("SendMessage", "msg", message, "roomId", roomId)
-	ctx := context.Background()
-	content := event.MessageEventContent{
-		MsgType: event.MsgText,
-		Body:    message,
-	}
-	_, err := client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return err
-	}
-
-	return nil
-}
-
 func ExtractMatrixRoomID(text string) (*id.RoomID, error) {
 	re := regexp.MustCompile(`!([\w-]+):[\w.-]+`)
 	match := re.FindString(text)

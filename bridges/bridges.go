@@ -10,6 +10,7 @@ import (
 
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
+	"github.com/shortmesh/core/messages"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
@@ -149,7 +150,7 @@ func JoinManagementRooms(client *mautrix.Client, bridgeCfg *configs.BridgeConfig
 	}
 
 	roomId := id.RoomID(_roomId)
-	err = rooms.SendMessage(client, roomId, bridgeConf.Cmd["management"])
+	err = messages.SendMessage(client, roomId, bridgeConf.Cmd["management"])
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

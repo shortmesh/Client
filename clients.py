@@ -10,6 +10,8 @@ import hmac
 import hashlib
 import time
 from email.utils import format_datetime
+from pathlib import Path
+import base64
 
 with open("conf.yaml", 'r') as file:
     config_data = yaml.safe_load(file)
@@ -26,6 +28,40 @@ def get_signature(method, path, body):
     signature = hmac.new(secret, string_to_sign, hashlib.sha256).hexdigest()
     print("- signature:", signature)
     return signature
+
+def send_message_media(username, platformName, deviceId, contact, message, file_path):
+    path = Path(file_path)
+
+    if not path.is_file():
+        raise FileNotFoundError(f"The file at {file_path} was not found")
+
+    extension = path.suffix.lower().replace(".", "")
+    with open(file_path, "rb") as fd:
+        data = fd.read()
+        base64_string = base64.b64encode(data).decode("utf-8")
+
+    url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
+    payload = { 
+        "username" : username, 
+        "platform_name" : platformName, 
+        "device_id" : deviceId, 
+        "contact" : contact, 
+        "text" : message, 
+        "file_extension": extension,
+        "file_content": base64_string
+    }
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("POST", f"/api/v1/devices/{deviceId}/message", f_payload)
+    print("- header:", header)
+
+    response = requests.post(url, json=payload, headers=header)
+
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        print(json.dumps(response.json(), indent=4))
 
 def send_message(username, platformName, deviceId, contact, message):
     url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
@@ -211,5 +247,17 @@ if __name__ == "__main__":
         message = sys.argv[6]
         try:
             send_message(username, platformName, deviceId, contact, message)
+        except Exception as error:
+            print(error)
+
+    elif sys.argv[1] == "--send-message-media":
+        username = sys.argv[2]
+        platformName = sys.argv[3]
+        deviceId = sys.argv[4]
+        contact = sys.argv[5]
+        message = sys.argv[6]
+        file_path = sys.argv[7]
+        try:
+            send_message_media(username, platformName, deviceId, contact, message, file_path)
         except Exception as error:
             print(error)
