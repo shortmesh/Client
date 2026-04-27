@@ -42,9 +42,6 @@ func main() {
 func RestAPIRoutines() {
 	router := gin.Default()
 
-	// Add CORS middleware
-	router.Use(apis.SecureMiddleware())
-
 	cfg, err := configs.GetConf()
 	if err != nil {
 		slog.Error(err.Error())
@@ -61,33 +58,33 @@ func RestAPIRoutines() {
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%s", host, port)
 	docs.SwaggerInfo.BasePath = fmt.Sprintf("/api/v%d", apiVersion)
 
+	// /docs is registered directly on the router — no middleware
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
 
-	router.POST(fmt.Sprintf("/api/v%d/login", apiVersion), apis.Login)
-	router.POST(fmt.Sprintf("/api/v%d/store", apiVersion), apis.Store)
-	router.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
-	router.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
-
-	router.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
-	router.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.Delete)
+	// All secured routes go in this group
+	secured := router.Group("/")
+	secured.Use(apis.SecureMiddleware())
+	{
+		secured.GET(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.GetDevices)
+		secured.POST(fmt.Sprintf("/api/v%d/login", apiVersion), apis.Login)
+		secured.POST(fmt.Sprintf("/api/v%d/store", apiVersion), apis.Store)
+		secured.POST(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.AddDevices)
+		secured.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
+		secured.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
+		secured.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.Delete)
+	}
 
 	tlsCert := cfg.Server.Tls.Crt
 	tlsKey := cfg.Server.Tls.Key
-
 	if tlsCert != "" && tlsKey != "" {
-		err := router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey)
-		if err != nil {
+		if err := router.RunTLS(fmt.Sprintf(":%s", port), tlsCert, tlsKey); err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return
 		}
 	} else {
-		err := router.Run(fmt.Sprintf("%s:%s", host, port))
-		if err != nil {
+		if err := router.Run(fmt.Sprintf("%s:%s", host, port)); err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
-			return
 		}
 	}
 }
