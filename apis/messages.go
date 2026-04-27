@@ -16,7 +16,7 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// DeviceSendTextMessage represents payload for sending a text message
+// DeviceSendMessage represents payload for sending a text message
 // @Description Request payload for sending a text message
 // @name DeviceSendTextMessage
 // @type object
@@ -34,7 +34,7 @@ type DeviceSendMessage struct {
 // @Description Sends a text message using the provided credentials and bridge details
 // @Accept  json
 // @Produce  json
-// @Param   payload body DeviceSendTextMessage true "Send Messages"
+// @Param   payload body DeviceSendMessage true "Send Messages"
 // @Success 201 {object} map[string]string "Message sent successfully"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
