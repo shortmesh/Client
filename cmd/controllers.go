@@ -193,6 +193,7 @@ func syncAll(source string) error {
 				Checks if rooms have the neccessary Ids
 				**/
 				go func() {
+
 					ok, err := rooms.Find(user.Client, evt.RoomID.String())
 					if err != nil {
 						slog.Error(err.Error())
@@ -200,6 +201,10 @@ func syncAll(source string) error {
 
 					if !ok {
 						bridgeCfg, err := bridges.GetBridgeFromRoom(user.Client, &evt.RoomID)
+						if bridgeCfg.BotName == evt.Sender.String() {
+							slog.Debug("GetBridgeRoom", "reason", "ignoring")
+							return
+						}
 						if err != nil {
 							slog.Error(err.Error())
 						}
