@@ -13,6 +13,8 @@ var conversationStartChat = "Signal private chat with +237123456789"
 
 var successMessage = "Successfully logged in as example (`12345678`)"
 
+var idMessage = "This room is bridged to `123456789@s.net` on WhatsApp"
+
 func TestCheckIfStartConversation(t *testing.T) {
 	expected := "+237123456789"
 	output := utils.ExtractE164Contact(conversationStartChat)
@@ -34,14 +36,20 @@ func TestSuccessParser(t *testing.T) {
 	}
 }
 
-// func TestCheckIfLoginMessage() {
+func TestIsIdMessage(t *testing.T) {
+	re := regexp.MustCompile("`([^`]+)`")
+	match := re.FindStringSubmatch(idMessage)
 
-// }
+	expected := "123456789@s.net"
+	if expected != match[1] {
+		t.Errorf("wanted %s, got %s", expected, match[1])
+	}
+}
 
-// func TestCheckIfSuccess() {
-
-// }
-
-// func TestCheckIfMatchDevice() {
-
-// }
+func TestE164Extraction(t *testing.T) {
+	sample := "sample_+23712345678"
+	re := regexp.MustCompile(`\+[1-9]\d{6,14}`)
+	if sample == re.FindString(sample) {
+		t.Errorf("wanted false, got true")
+	}
+}

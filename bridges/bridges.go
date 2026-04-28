@@ -105,6 +105,18 @@ func RemoveDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, devic
 	return nil
 }
 
+func GetId(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, roomId *id.RoomID) error {
+	cmd := bridgeCfg.Cmd["id"]
+
+	if err := queryCommand(client, roomId, cmd); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
 func AddDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) error {
 	cmd := bridgeCfg.Cmd["login"]
 
@@ -169,16 +181,16 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
-	botUsername := id.UserID(bridgeCfg.BotName)
-	ok, err := isManagementRoom(client, evt.RoomID, botUsername)
-	if err != nil {
-		slog.Error(err.Error())
-		return err
-	}
+	// botUsername := id.UserID(bridgeCfg.BotName)
+	// ok, err := isManagementRoom(client, evt.RoomID, botUsername)
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	return err
+	// }
 
-	if !ok {
-		return nil
-	}
+	// if !ok {
+	// 	return nil
+	// }
 
 	err = processIncomingBotMessage(client, evt, bridgeCfg)
 	if err != nil {
@@ -270,4 +282,29 @@ func AddBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
 	}
 
 	return nil
+}
+
+func GetBridgeFromRoom(client *mautrix.Client, roomId *id.RoomID) (*configs.BridgeConfig, error) {
+	cfg, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	resp, err := client.JoinedMembers(context.Background(), *roomId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, bridgeCfg := range cfg.Bridges {
+		for resp := range resp.Joined {
+			if bridgeCfg.BotName == resp.String() {
+				return &bridgeCfg, nil
+			}
+		}
+	}
+	return nil, nil
 }

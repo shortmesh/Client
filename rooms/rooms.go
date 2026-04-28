@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -88,4 +89,76 @@ func ExtractMatrixRoomID(text string) (*id.RoomID, error) {
 		return nil, fmt.Errorf("no Matrix room ID found in text")
 	}
 	return (*id.RoomID)(&match), nil
+}
+
+func SaveBridgedId(client *mautrix.Client, bridgedId, roomId, bridgeName string) error {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = roomDb.Insert(roomId, bridgedId, bridgeName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
+func Find(client *mautrix.Client, roomId string) (bool, error) {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return false, err
+	}
+
+	_, err = roomDb.Find(roomId)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+func GetBridgedId(client *mautrix.Client, bridgedId string) (string, error) {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	roomId, err := roomDb.FindBridged(bridgedId)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return "", err
+		}
+		return "", nil
+	}
+	return *roomId, nil
 }

@@ -98,7 +98,7 @@ func SendMessage(c *gin.Context) {
 		deviceSendMessage.FileContent,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault!"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not your fault!"})
 		return
 	}
 

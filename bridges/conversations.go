@@ -10,9 +10,31 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
 	"github.com/shortmesh/core/rabbitmq"
+	"github.com/shortmesh/core/rooms"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 )
+
+func checkIfIdMessage(bridgeConfig configs.BridgeConfig, message string) (string, error) {
+	regexPattern := strings.ReplaceAll(bridgeConfig.Cmd["incoming_id"], "%s", ".*")
+	matched, err := regexp.MatchString(regexPattern, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return "", err
+	}
+
+	if matched {
+		re := regexp.MustCompile("`([^`]+)`")
+		match := re.FindStringSubmatch(message)
+
+		// match[0] is the whole match, match[1] is the captured group
+		if len(match) > 1 {
+			return match[1], nil
+		}
+	}
+	return "", nil
+}
 
 func checkIfSuccess(bridgeConfig configs.BridgeConfig, message string) (*string, error) {
 	regexPattern := strings.ReplaceAll(bridgeConfig.Cmd["success"], "%s", ".*")
@@ -68,6 +90,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 	slog.Debug("Bot message", "botname", bridgeCfg.Name, "msg", evt.Content.AsMessage().Body)
 	message := evt.Content.AsMessage().Body
 
+	rabbitmqQueueName := client.UserID.Localpart() + "_add_new_device"
 	deviceId, err := checkIfSuccess(*bridgeCfg, message)
 	if err != nil {
 		slog.Error(err.Error())
@@ -86,7 +109,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 			return err
 		}
 
-		if err = rabbitmq.DeleteQueue(client, client.UserID.Localpart()); err != nil {
+		if err = rabbitmq.DeleteQueue(client, rabbitmqQueueName); err != nil {
 			slog.Error(err.Error())
 			return err
 		}
@@ -101,13 +124,12 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		bindingKey := RMQBindingKeys{}
 		defaults.Set(&bindingKey)
 
-		queueName := client.UserID.Localpart() + "_add_new_device"
 		err := rabbitmq.Sender(
 			client,
 			message,
 			exchange.AddNewDevice,
 			bindingKey.AddNewDevice,
-			queueName,
+			rabbitmqQueueName,
 		)
 		if err != nil {
 			slog.Error(err.Error())
@@ -124,7 +146,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		return err
 	}
 	if isFailedLogin {
-		err = rabbitmq.DeleteQueue(client, client.UserID.Localpart())
+		err = rabbitmq.DeleteQueue(client, rabbitmqQueueName)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
@@ -133,22 +155,20 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 		return err
 	}
 
-	// isStartConversation, err := checkIfStartConversation(evt)
-	// if err != nil {
-	// 	slog.Error(err.Error())
-	// 	debug.PrintStack()
-	// 	return err
-	// }
-	// if isStartConversation {
-	// 	address := startConversationExtractE164Contact(message)
-	// 	userId := evt.Content.AsMessage().Mentions.UserIDs[0]
+	id, err := checkIfIdMessage(*bridgeCfg, message)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	if id != "" {
+		slog.Debug("Bot message ID found", "id", id)
+		err = rooms.SaveBridgedId(client, id, evt.RoomID.String(), bridgeCfg.Name)
+		if err != nil {
+			slog.Error(err.Error())
+			return err
+		}
+	}
 
-	// 	err := (&contacts.Contacts{DbFilename: client.UserID.String()}).Save(address, userId.String())
-	// 	if err != nil {
-	// 		slog.Error(err.Error())
-	// 		return err
-	// 	}
-	// 	return nil
-	// }
 	return nil
 }

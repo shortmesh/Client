@@ -189,6 +189,29 @@ func syncAll(source string) error {
 	for _, user := range fetchedUsers {
 		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
 			Callback: func(evt *event.Event) error {
+				/**
+				Checks if rooms have the neccessary Ids
+				**/
+				go func() {
+					ok, err := rooms.Find(user.Client, evt.RoomID.String())
+					if err != nil {
+						slog.Error(err.Error())
+					}
+
+					if !ok {
+						bridgeCfg, err := bridges.GetBridgeFromRoom(user.Client, &evt.RoomID)
+						if err != nil {
+							slog.Error(err.Error())
+						}
+						if bridgeCfg != nil {
+							slog.Debug("Event syncer", "rooms bridge", bridgeCfg.BotName)
+							err = bridges.GetId(user.Client, bridgeCfg, &evt.RoomID)
+							if err != nil {
+								slog.Error(err.Error())
+							}
+						}
+					}
+				}()
 
 				/**
 				Bridges listener, responsible for outgoing messages
@@ -396,36 +419,48 @@ func noisyRoomIdRequest(
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
 
-	wg.Add(1)
+	if utils.ExtractE164Contact(receiver) == "" {
+		slog.Debug("Noisy room not contact", "receiver", receiver)
+		roomIdStr, err := rooms.GetBridgedId(client, receiver)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		if roomIdStr != "" {
+			newRoomId := id.RoomID(roomIdStr)
+			roomId = &newRoomId
+		}
+	} else {
+		wg.Add(1)
+		callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
+		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+			ID:        callbackEventId,
+			EventType: "m.room.message",
+			Callback: func(evt *event.Event) error {
+				slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+				defer func() {
+					syncers.UnRegisterSyncMessageListener(callbackEventId)
+					wg.Done()
+				}()
+				_roomId, err := isContactCallback(client, evt, &receiver)
+				if err != nil {
+					slog.Error(err.Error())
+					return err
+				}
+				roomId = _roomId
 
-	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
+				return nil
+			},
+		})
 
-	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
-		ID:        callbackEventId,
-		EventType: "m.room.message",
-		Callback: func(evt *event.Event) error {
-			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
-			_roomId, err := isContactCallback(client, evt, &receiver)
-			if err != nil {
-				slog.Error(err.Error())
-				return err
-			}
-			roomId = _roomId
-			defer wg.Done()
-
-			syncers.UnRegisterSyncMessageListener(callbackEventId)
-
-			return nil
-		},
-	})
-
-	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, err
+		err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		wg.Wait()
 	}
 
-	wg.Wait()
 	return roomId, nil
 }
 

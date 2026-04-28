@@ -18,12 +18,15 @@ rabbitmq:
   tls:
     crt: ""
     key: ""
+
 bridges:
   - name: wa 
     botname: "@whatsappbot:matrix.example.com"
     username_template: "whatsapp_{{.}}"
     display_username_template: "{{.}} (WA)"
     cmd:
+      incoming_id: "This room is bridged to `%s` on WhatsApp"
+      id: "!wa id"
       login: "!wa login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "!wa list-logins"
@@ -41,6 +44,8 @@ bridges:
     username_template: "signal_{{.}}"
     display_username_template: "{{.}} (Signal)"
     cmd:
+      incoming_id: "This room is bridged to `%s` on Signal"
+      id: "!signal id"
       login: "!signal login"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "!signal list-logins"
@@ -58,6 +63,8 @@ bridges:
     username_template: "telegram_{{.}}"
     display_username_template: "{{.}} (Telegram)"
     cmd:
+      incoming_id: "This room is bridged to `%s` on Telegram"
+      id: "!tg id"
       login: "!tg login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
       devices: "!tg list-logins"
