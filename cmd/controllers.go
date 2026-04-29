@@ -201,6 +201,9 @@ func syncAll(source string) error {
 
 					if !ok {
 						bridgeCfg, err := bridges.GetBridgeFromRoom(user.Client, &evt.RoomID)
+						if err != nil {
+							slog.Error(err.Error())
+						}
 						if bridgeCfg.BotName == evt.Sender.String() {
 							slog.Debug("GetBridgeRoom", "reason", "ignoring")
 							return
