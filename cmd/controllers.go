@@ -442,52 +442,27 @@ func noisyRoomIdRequest(
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
 
-	// if utils.ExtractE164Contact(receiver) == "" {
-	// 	slog.Debug("Noisy room not contact", "receiver", receiver)
-	// 	roomIdStr, err := rooms.GetBridgedId(client, receiver)
-	// 	if err != nil {
-	// 		slog.Error(err.Error())
-	// 		return nil, err
-	// 	}
-	// 	if roomIdStr != "" {
-	// 		newRoomId := id.RoomID(roomIdStr)
-	// 		roomId = &newRoomId
-	// 	}
-	// } else {
-	// 	wg.Add(1)
-	// 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
-	// 	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
-	// 		ID:        callbackEventId,
-	// 		EventType: "m.room.message",
-	// 		Callback: func(evt *event.Event) error {
-	// 			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
-	// 			defer func() {
-	// 				syncers.UnRegisterSyncMessageListener(callbackEventId)
-	// 				wg.Done()
-	// 			}()
-	// 			_roomId, err := isContactCallback(client, evt, &receiver)
-	// 			if err != nil {
-	// 				slog.Error(err.Error())
-	// 				return err
-	// 			}
-	// 			roomId = _roomId
+	isUrl := false
 
-	// 			return nil
-	// 		},
-	// 	})
+	if utils.ExtractE164Contact(receiver) == "" {
+		_, err := url.ParseRequestURI(receiver)
+		isUrl = err == nil
 
-	// 	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
-	// 	if err != nil {
-	// 		slog.Error(err.Error())
-	// 		return nil, err
-	// 	}
-	// 	wg.Wait()
-	// }
+		slog.Debug("Noisy room not contact", "receiver", receiver)
+		roomIdStr, err := rooms.GetBridgedId(client, receiver)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		if roomIdStr != "" {
+			newRoomId := id.RoomID(roomIdStr)
+			roomId = &newRoomId
+			return roomId, nil
+		}
+	}
 
 	wg.Add(1)
 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
-	_, err := url.ParseRequestURI(receiver)
-	isUrl := err == nil
 
 	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
 		ID:        callbackEventId,
@@ -509,7 +484,7 @@ func noisyRoomIdRequest(
 		},
 	})
 
-	err = bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
+	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
