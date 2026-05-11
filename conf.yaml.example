@@ -46,7 +46,7 @@ bridges:
     display_username_template: "{{.}} (Signal)"
     cmd:
       incoming_id: "This room is bridged to `%s` on Signal"
-      start-resolution: "!wa resolve-link %s"
+      start-resolution: "!signal resolve-link %s"
       id: "!signal id"
       login: "!signal login"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
@@ -66,7 +66,7 @@ bridges:
     display_username_template: "{{.}} (Telegram)"
     cmd:
       incoming_id: "This room is bridged to `%s` on Telegram"
-      start-resolution: "!wa resolve-link %s"
+      start-resolution: "!tg resolve-link %s"
       id: "!tg id"
       login: "!tg login qr"
       list-logins: "* `%s` (+%s) - `CONNECTED`"
