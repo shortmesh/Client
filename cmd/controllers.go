@@ -316,9 +316,10 @@ func (c *Controller) SendMessage(
 	message,
 	fileExtension,
 	fileContent,
-	groupUrl string,
-) (*id.RoomID, error) {
-	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
+	groupUrl,
+	replyId string,
+) (*id.EventID, error) {
+	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "replyId", replyId)
 
 	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil && err != sql.ErrNoRows {
@@ -366,21 +367,21 @@ func (c *Controller) SendMessage(
 			return nil, err
 		}
 
-		err = messages.SendMediaMessage(c.Client, *roomId, *filepath, message)
+		evt, err := messages.SendMediaMessage(c.Client, *roomId, *filepath, message, replyId)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
 		}
+		return evt, nil
 	} else {
-		err = messages.SendMessage(c.Client, *roomId, message)
+		evt, err := messages.SendMessage(c.Client, *roomId, message, replyId)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
 			return nil, err
 		}
+		return evt, nil
 	}
-
-	return roomId, nil
 }
 
 func deleteFile(filePath *string) error {

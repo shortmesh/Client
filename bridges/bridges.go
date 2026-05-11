@@ -170,7 +170,7 @@ func JoinManagementRooms(client *mautrix.Client, bridgeCfg *configs.BridgeConfig
 	}
 
 	roomId := id.RoomID(_roomId)
-	err = messages.SendMessage(client, roomId, bridgeConf.Cmd["management"])
+	_, err = messages.SendMessage(client, roomId, bridgeConf.Cmd["management"], "")
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

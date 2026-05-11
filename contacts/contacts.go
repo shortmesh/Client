@@ -192,6 +192,7 @@ type IncomingMessagePayloadMedia struct {
 }
 
 type IncomingMessagePayload struct {
+	ID        string
 	IsContact bool
 	Type      string
 	From      string
@@ -208,6 +209,7 @@ func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*s
 
 	message := evt.Content.AsMessage()
 	incomingMessagePayload := IncomingMessagePayload{
+		ID:        evt.ID.String(),
 		IsContact: contact != nil,
 		Type:      string(message.MsgType),
 		From:      from,

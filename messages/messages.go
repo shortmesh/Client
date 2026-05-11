@@ -14,24 +14,43 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-func SendMessage(client *mautrix.Client, roomId id.RoomID, message string) error {
+func SendMessage(
+	client *mautrix.Client,
+	roomId id.RoomID,
+	message,
+	replyId string,
+) (*id.EventID, error) {
 	slog.Debug("SendMessage", "msg", message, "roomId", roomId)
 	ctx := context.Background()
 	content := event.MessageEventContent{
 		MsgType: event.MsgText,
 		Body:    message,
 	}
-	_, err := client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
+	if replyId != "" {
+		content.RelatesTo = &event.RelatesTo{
+			InReplyTo: &event.InReplyTo{
+				EventID: id.EventID(replyId),
+			},
+		}
+	}
+
+	evt, err := client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &evt.EventID, nil
 }
 
-func SendMediaMessage(client *mautrix.Client, roomId id.RoomID, filePath, message string) error {
+func SendMediaMessage(
+	client *mautrix.Client,
+	roomId id.RoomID,
+	filePath,
+	message,
+	replyId string,
+) (*id.EventID, error) {
 	slog.Debug("SendMediaMessage", "file", filePath, "roomId", roomId)
 	ctx := context.Background()
 
@@ -39,7 +58,7 @@ func SendMediaMessage(client *mautrix.Client, roomId id.RoomID, filePath, messag
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
@@ -47,7 +66,7 @@ func SendMediaMessage(client *mautrix.Client, roomId id.RoomID, filePath, messag
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return err
+		return nil, err
 	}
 
 	fileName := filepath.Base(filePath)
@@ -66,22 +85,21 @@ func SendMediaMessage(client *mautrix.Client, roomId id.RoomID, filePath, messag
 	if err != nil {
 		slog.Error("upload failed", "err", err)
 		debug.PrintStack()
-		return err
+		return nil, err
 	}
 
-	content := buildMediaContent(resp.ContentURI, fileName, mimeType, message)
+	content := buildMediaContent(resp.ContentURI, fileName, mimeType, message, replyId)
 
-	// 5. Send the event
-	_, err = client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
+	evt, err := client.SendMessageEvent(ctx, roomId, event.EventMessage, content)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
-		return err
+		return nil, err
 	}
-	return nil
+	return &evt.EventID, nil
 }
 
-func buildMediaContent(uri id.ContentURI, fileName, mimeType, message string) event.MessageEventContent {
+func buildMediaContent(uri id.ContentURI, fileName, mimeType, message, replyId string) event.MessageEventContent {
 	var msgType event.MessageType
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
@@ -93,7 +111,7 @@ func buildMediaContent(uri id.ContentURI, fileName, mimeType, message string) ev
 	default:
 		msgType = event.MsgFile
 	}
-	return event.MessageEventContent{
+	evt := event.MessageEventContent{
 		MsgType:  msgType,
 		Body:     message,
 		FileName: fileName,
@@ -102,4 +120,14 @@ func buildMediaContent(uri id.ContentURI, fileName, mimeType, message string) ev
 			MimeType: mimeType,
 		},
 	}
+
+	if replyId != "" {
+		evt.RelatesTo = &event.RelatesTo{
+			InReplyTo: &event.InReplyTo{
+				EventID: id.EventID(replyId),
+			},
+		}
+	}
+
+	return evt
 }

@@ -63,7 +63,7 @@ def send_message_media(username, platformName, deviceId, contact, message, file_
     if response.status_code == 200:
         print(json.dumps(response.json(), indent=4))
 
-def send_message(username, platformName, deviceId, contact, message):
+def send_message(username, platformName, deviceId, contact, message, reply_to):
     url = f"http://localhost:8080/api/v1/devices/{deviceId}/message"
     # url = f"https://client.matrix.afkanerd.de/api/v1/devices/{deviceId}/message"
     payload = { 
@@ -73,6 +73,7 @@ def send_message(username, platformName, deviceId, contact, message):
         "contact" : contact, 
         "text" : message, 
         "group_url" : contact, 
+        "reply_id" : reply_to, 
     }
     f_payload = json.dumps(payload)
     print("- payload:", f_payload)
@@ -246,8 +247,11 @@ if __name__ == "__main__":
         deviceId = sys.argv[4]
         contact = sys.argv[5]
         message = sys.argv[6]
+        reply_to = ""
+        if len(sys.argv) > 7:
+            reply_to = sys.argv[7]
         try:
-            send_message(username, platformName, deviceId, contact, message)
+            send_message(username, platformName, deviceId, contact, message, reply_to)
         except Exception as error:
             print(error)
 
