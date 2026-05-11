@@ -37,7 +37,7 @@ type DeviceSendMessage struct {
 // @Accept  json
 // @Produce  json
 // @Param   payload body DeviceSendMessage true "Send Messages"
-// @Success 201 {object} map[string]string "Message sent successfully"
+// @Success 201 {object} map[string]string "{"message_id":"", "status":"Message sent!"}"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
 // @Failure 500 {object} map[string]string "Internal server error"
