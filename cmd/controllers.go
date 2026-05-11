@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -314,7 +315,8 @@ func (c *Controller) SendMessage(
 	receiver,
 	message,
 	fileExtension,
-	fileContent string,
+	fileContent,
+	groupUrl string,
 ) (*id.RoomID, error) {
 	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
 
@@ -325,10 +327,22 @@ func (c *Controller) SendMessage(
 		return nil, err
 	}
 
+	entityForSearch := receiver
+	if groupUrl != "" {
+		groupUrl := strings.ReplaceAll(groupUrl, `\?`, "?")
+		u, err := url.Parse(groupUrl)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		u.RawQuery = ""
+		entityForSearch = u.String()
+	}
 	roomId, err := noisyRoomIdRequest(
 		c.Client,
 		bridgeCfg,
-		receiver,
+		entityForSearch,
 		deviceId,
 	)
 
@@ -428,9 +442,102 @@ func noisyRoomIdRequest(
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
 
-	if utils.ExtractE164Contact(receiver) == "" {
-		slog.Debug("Noisy room not contact", "receiver", receiver)
-		roomIdStr, err := rooms.GetBridgedId(client, receiver)
+	// if utils.ExtractE164Contact(receiver) == "" {
+	// 	slog.Debug("Noisy room not contact", "receiver", receiver)
+	// 	roomIdStr, err := rooms.GetBridgedId(client, receiver)
+	// 	if err != nil {
+	// 		slog.Error(err.Error())
+	// 		return nil, err
+	// 	}
+	// 	if roomIdStr != "" {
+	// 		newRoomId := id.RoomID(roomIdStr)
+	// 		roomId = &newRoomId
+	// 	}
+	// } else {
+	// 	wg.Add(1)
+	// 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
+	// 	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+	// 		ID:        callbackEventId,
+	// 		EventType: "m.room.message",
+	// 		Callback: func(evt *event.Event) error {
+	// 			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+	// 			defer func() {
+	// 				syncers.UnRegisterSyncMessageListener(callbackEventId)
+	// 				wg.Done()
+	// 			}()
+	// 			_roomId, err := isContactCallback(client, evt, &receiver)
+	// 			if err != nil {
+	// 				slog.Error(err.Error())
+	// 				return err
+	// 			}
+	// 			roomId = _roomId
+
+	// 			return nil
+	// 		},
+	// 	})
+
+	// 	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+	// 	if err != nil {
+	// 		slog.Error(err.Error())
+	// 		return nil, err
+	// 	}
+	// 	wg.Wait()
+	// }
+
+	wg.Add(1)
+	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
+	_, err := url.ParseRequestURI(receiver)
+	isUrl := err == nil
+
+	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+		ID:        callbackEventId,
+		EventType: "m.room.message",
+		Callback: func(evt *event.Event) error {
+			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
+			defer func() {
+				syncers.UnRegisterSyncMessageListener(callbackEventId)
+				wg.Done()
+			}()
+			_roomId, err := isContactCallback(client, evt, &receiver, isUrl)
+			if err != nil {
+				slog.Error(err.Error())
+				return err
+			}
+			roomId = _roomId
+
+			return nil
+		},
+	})
+
+	err = bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	wg.Wait()
+
+	return roomId, nil
+}
+
+func isContactCallback(
+	client *mautrix.Client,
+	evt *event.Event,
+	receiver *string,
+	isUrl bool,
+) (*id.RoomID, error) {
+	var roomId *id.RoomID
+	if isUrl {
+		content := evt.Content.AsMessage().Body
+		resolvedUrl, err := utils.ExtractBracketContent(content)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+
+		resolvedUrl = strings.ReplaceAll(resolvedUrl, "`", "")
+
+		roomIdStr, err := rooms.GetBridgedId(client, resolvedUrl)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
@@ -440,55 +547,22 @@ func noisyRoomIdRequest(
 			roomId = &newRoomId
 		}
 	} else {
-		wg.Add(1)
-		callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
-		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
-			ID:        callbackEventId,
-			EventType: "m.room.message",
-			Callback: func(evt *event.Event) error {
-				slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
-				defer func() {
-					syncers.UnRegisterSyncMessageListener(callbackEventId)
-					wg.Done()
-				}()
-				_roomId, err := isContactCallback(client, evt, &receiver)
-				if err != nil {
-					slog.Error(err.Error())
-					return err
-				}
-				roomId = _roomId
-
-				return nil
-			},
-		})
-
-		err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+		contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
+		if len(contactUserIds) != 1 {
+			slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
+			return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
+		}
+		err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
 		}
-		wg.Wait()
-	}
-
-	return roomId, nil
-}
-
-func isContactCallback(client *mautrix.Client, evt *event.Event, receiver *string) (*id.RoomID, error) {
-	contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
-	if len(contactUserIds) != 1 {
-		slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
-		return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
-	}
-	err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, err
-	}
-	roomId, err := rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
+		roomId, err = rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
 	}
 
 	return roomId, nil

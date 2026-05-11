@@ -21,6 +21,9 @@ import (
 // @title ShortMesh - Client API
 // @version 1.0
 func main() {
+	// TODO: Resolve Group names from URL
+	// e.g. Whatsapp (groups, channels), signal, Telegram (groups, channels)
+
 	opts := &slog.HandlerOptions{
 		Level: slog.LevelDebug, // Equivalent to enabling debug logs
 		// AddSource: true,            // Equivalent to log.Lshortfile/log.Llongfile

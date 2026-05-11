@@ -72,6 +72,7 @@ def send_message(username, platformName, deviceId, contact, message):
         "device_id" : deviceId, 
         "contact" : contact, 
         "text" : message, 
+        "group_url" : contact, 
     }
     f_payload = json.dumps(payload)
     print("- payload:", f_payload)

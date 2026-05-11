@@ -27,6 +27,7 @@ type DeviceSendMessage struct {
 	Text          string `json:"text" example:"john_doe"`
 	FileExtension string `json:"file_extension" example:"pdf"`
 	FileContent   string `json:"file_content" example:"base64encode(file_content)"`
+	GroupUrl      string `json:"group_url" example:"https://example.com"`
 }
 
 // SendMessage godoc
@@ -96,6 +97,7 @@ func SendMessage(c *gin.Context) {
 		deviceSendMessage.Text,
 		deviceSendMessage.FileExtension,
 		deviceSendMessage.FileContent,
+		deviceSendMessage.GroupUrl,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Not your fault!"})

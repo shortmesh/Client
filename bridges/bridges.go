@@ -35,9 +35,17 @@ type RMQBindingKeys struct {
 func StartConversation(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
-	deviceId, contact string,
+	deviceId,
+	contact string,
+	isUrl bool,
 ) error {
-	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	// TODO: check if url, then ask for resolution
+	var query string
+	if isUrl {
+		query = utils.ReplacePlaceholders(bridgeCfg.Cmd["start-resolution"], contact)
+	} else {
+		query = utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	}
 
 	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
 	if err != nil {
