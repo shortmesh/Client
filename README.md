@@ -177,6 +177,7 @@ queue name: {username}_incoming_messages
     "From": "",
     "To": "",
     "Message": "",
+    "DeviceId": "",
     "Media": {
         "Content": bytes,
         "Info": {
