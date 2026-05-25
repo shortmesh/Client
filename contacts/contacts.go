@@ -145,7 +145,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return err
 	}
 
-	payload, err := getPayload(client, evt, contact)
+	payload, err := getPayload(client, evt, contact, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
@@ -198,13 +198,48 @@ type IncomingMessagePayload struct {
 	From      string
 	To        string
 	Message   string
+	DeviceId  string
 	Media     IncomingMessagePayloadMedia
 }
 
-func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*string, error) {
+func getPayload(
+	client *mautrix.Client,
+	evt *event.Event,
+	contact *Contacts,
+	bridgeCfg *configs.BridgeConfig,
+) (*string, error) {
 	from := evt.Sender.String()
 	if contact != nil {
 		from = contact.Name
+	}
+
+	res, err := client.JoinedMembers(context.Background(), evt.RoomID)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var deviceId string
+	for member := range res.Joined {
+		fmt.Printf("Finding device: %s\n", member.Localpart())
+		possibleDeviceId, err := configs.ExtractComponentByTemplates(
+			bridgeCfg.UsernameTemplate,
+			member.Localpart(),
+		)
+		if err != nil {
+			continue
+		}
+
+		ok, err := devices.IsDevice(client, possibleDeviceId)
+		if err != nil {
+			continue
+		}
+
+		if ok {
+			deviceId = possibleDeviceId
+			break
+		}
 	}
 
 	message := evt.Content.AsMessage()
@@ -213,6 +248,7 @@ func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*s
 		IsContact: contact != nil,
 		Type:      string(message.MsgType),
 		From:      from,
+		DeviceId:  deviceId,
 		To:        client.UserID.String(),
 		Message:   evt.Content.AsMessage().Body,
 	}
