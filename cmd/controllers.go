@@ -210,9 +210,6 @@ func syncAll(source string) error {
 							slog.Debug("GetBridgeRoom", "reason", "ignoring")
 							return
 						}
-						if err != nil {
-							slog.Error(err.Error())
-						}
 						if bridgeCfg != nil {
 							slog.Debug("Event syncer", "rooms bridge", bridgeCfg.BotName)
 							err = bridges.GetId(user.Client, bridgeCfg, &evt.RoomID)
