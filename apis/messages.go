@@ -16,15 +16,19 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// DeviceSendTextMessage represents payload for sending a text message
+// DeviceSendMessage represents payload for sending a text message
 // @Description Request payload for sending a text message
 // @name DeviceSendTextMessage
 // @type object
-type DeviceSendTextMessage struct {
-	Username     string `json:"username" example:"john_doe"`
-	PlatformName string `json:"platform_name" example:"john_doe"`
-	Contact      string `json:"contact" example:"john_doe"`
-	Text         string `json:"text" example:"john_doe"`
+type DeviceSendMessage struct {
+	Username      string `json:"username" example:"john_doe"`
+	PlatformName  string `json:"platform_name" example:"john_doe"`
+	Contact       string `json:"contact" example:"john_doe"`
+	Text          string `json:"text" example:"john_doe"`
+	FileExtension string `json:"file_extension" example:"pdf"`
+	FileContent   string `json:"file_content" example:"base64encode(file_content)"`
+	GroupUrl      string `json:"group_url" example:"https://example.com"`
+	ReplyId       string `json:"reply_id" example:"https://example.com"`
 }
 
 // SendMessage godoc
@@ -32,14 +36,13 @@ type DeviceSendTextMessage struct {
 // @Description Sends a text message using the provided credentials and bridge details
 // @Accept  json
 // @Produce  json
-// @Param   payload body DeviceSendTextMessage true "Send Messages"
-// @Success 201 {object} map[string]string "Message sent successfully"
+// @Param   payload body DeviceSendMessage true "Send Messages"
+// @Success 201 {object} map[string]string "{"message_id":"", "status":"Message sent!"}"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Login failed"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /devices/{deviceId}/message [post]
 func SendMessage(c *gin.Context) {
-
 	conf, err := configs.GetConf()
 
 	if err != nil {
@@ -49,15 +52,15 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	var deviceSendTextMessage DeviceSendTextMessage
+	var deviceSendMessage DeviceSendMessage
 
-	if err := c.BindJSON(&deviceSendTextMessage); err != nil {
+	if err := c.BindJSON(&deviceSendMessage); err != nil {
 		log.Printf("Invalid request payload: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 		return
 	}
 
-	username, err := utils.SanitizeUsername(deviceSendTextMessage.Username)
+	username, err := utils.SanitizeUsername(deviceSendMessage.Username)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -86,18 +89,22 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	_, err = (&cmd.Controller{
+	evt, err := (&cmd.Controller{
 		Client: client,
 	}).SendMessage(
-		deviceSendTextMessage.PlatformName,
+		deviceSendMessage.PlatformName,
 		deviceId,
-		deviceSendTextMessage.Contact,
-		deviceSendTextMessage.Text,
+		deviceSendMessage.Contact,
+		deviceSendMessage.Text,
+		deviceSendMessage.FileExtension,
+		deviceSendMessage.FileContent,
+		deviceSendMessage.GroupUrl,
+		deviceSendMessage.ReplyId,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Not your fault!"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not your fault!"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "Message sent!"})
+	c.JSON(http.StatusOK, gin.H{"status": "Message sent!", "message_id": evt.String()})
 }

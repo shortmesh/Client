@@ -138,14 +138,13 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		}
 	}
 
-	username := evt.Sender
-	contact, err := isContactRoom(client, &username)
+	contact, err := processContact(client, evt, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
 	}
 
-	payload, err := getPayload(client, evt, contact)
+	payload, err := getPayload(client, evt, contact, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
@@ -163,7 +162,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 
 	slog.Debug("Contact message", "payload", payload)
 
-	queueName := client.UserID.String() + "_incoming_messages"
+	queueName := client.UserID.Localpart() + "_incoming_messages"
 	err = rabbitmq.Sender(
 		client,
 		*payload,
@@ -179,6 +178,59 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	return nil
 }
 
+func processContact(
+	client *mautrix.Client,
+	evt *event.Event,
+	bridgeCfg *configs.BridgeConfig,
+) (*Contacts, error) {
+	username := evt.Sender
+	contact, err := isContactRoom(client, &username)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	if contact != nil {
+		return contact, nil
+	}
+
+	// attempt extraction
+	resp, err := client.GetDisplayName(context.Background(), evt.Sender)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	displayName := resp.DisplayName
+	if bridgeCfg.E164InUsername {
+		localpart := evt.Sender.Localpart()
+		name, err := configs.ExtractComponentByTemplates(bridgeCfg.UsernameTemplate, localpart)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		} else {
+			displayName = name
+		}
+
+		err = CreateContact(client, displayName, &evt.Sender)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		contact, err = FetchContact(client, &evt.Sender)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+	}
+	slog.Debug("Processing contact", "displayName", resp.DisplayName, "processedName", displayName)
+
+	return contact, nil
+}
+
 type IncomingMessagePayloadMediaInfo struct {
 	Size     float64
 	MimeType string
@@ -192,25 +244,62 @@ type IncomingMessagePayloadMedia struct {
 }
 
 type IncomingMessagePayload struct {
+	ID        string
 	IsContact bool
 	Type      string
 	From      string
 	To        string
 	Message   string
+	DeviceId  string
 	Media     IncomingMessagePayloadMedia
 }
 
-func getPayload(client *mautrix.Client, evt *event.Event, contact *Contacts) (*string, error) {
+func getPayload(
+	client *mautrix.Client,
+	evt *event.Event,
+	contact *Contacts,
+	bridgeCfg *configs.BridgeConfig,
+) (*string, error) {
 	from := evt.Sender.String()
 	if contact != nil {
 		from = contact.Name
 	}
 
+	res, err := client.JoinedMembers(context.Background(), evt.RoomID)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var deviceId string
+	for member := range res.Joined {
+		possibleDeviceId, err := configs.ExtractComponentByTemplates(
+			bridgeCfg.UsernameTemplate,
+			member.Localpart(),
+		)
+		if err != nil {
+			continue
+		}
+
+		ok, err := devices.IsDevice(client, possibleDeviceId)
+		if err != nil {
+			continue
+		}
+
+		if ok {
+			deviceId = possibleDeviceId
+			break
+		}
+	}
+
 	message := evt.Content.AsMessage()
 	incomingMessagePayload := IncomingMessagePayload{
+		ID:        evt.ID.String(),
 		IsContact: contact != nil,
 		Type:      string(message.MsgType),
 		From:      from,
+		DeviceId:  deviceId,
 		To:        client.UserID.String(),
 		Message:   evt.Content.AsMessage().Body,
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/devices"
+	"github.com/shortmesh/core/messages"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
@@ -34,9 +35,17 @@ type RMQBindingKeys struct {
 func StartConversation(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
-	deviceId, contact string,
+	deviceId,
+	contact string,
+	isUrl bool,
 ) error {
-	query := utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	// TODO: check if url, then ask for resolution
+	var query string
+	if isUrl {
+		query = utils.ReplacePlaceholders(bridgeCfg.Cmd["start-resolution"], contact)
+	} else {
+		query = utils.ReplacePlaceholders(bridgeCfg.Cmd["start-conversation"], deviceId, contact)
+	}
 
 	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
 	if err != nil {
@@ -104,6 +113,18 @@ func RemoveDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, devic
 	return nil
 }
 
+func GetId(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, roomId *id.RoomID) error {
+	cmd := bridgeCfg.Cmd["id"]
+
+	if err := queryCommand(client, roomId, cmd); err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
 func AddDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) error {
 	cmd := bridgeCfg.Cmd["login"]
 
@@ -149,7 +170,7 @@ func JoinManagementRooms(client *mautrix.Client, bridgeCfg *configs.BridgeConfig
 	}
 
 	roomId := id.RoomID(_roomId)
-	err = rooms.SendMessage(client, roomId, bridgeConf.Cmd["management"])
+	_, err = messages.SendMessage(client, roomId, bridgeConf.Cmd["management"], "")
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
@@ -168,16 +189,16 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
-	botUsername := id.UserID(bridgeCfg.BotName)
-	ok, err := isManagementRoom(client, evt.RoomID, botUsername)
-	if err != nil {
-		slog.Error(err.Error())
-		return err
-	}
+	// botUsername := id.UserID(bridgeCfg.BotName)
+	// ok, err := isManagementRoom(client, evt.RoomID, botUsername)
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	return err
+	// }
 
-	if !ok {
-		return nil
-	}
+	// if !ok {
+	// 	return nil
+	// }
 
 	err = processIncomingBotMessage(client, evt, bridgeCfg)
 	if err != nil {
@@ -269,4 +290,29 @@ func AddBridge(client *mautrix.Client, bridgeConf configs.BridgeConfig) error {
 	}
 
 	return nil
+}
+
+func GetBridgeFromRoom(client *mautrix.Client, roomId *id.RoomID) (*configs.BridgeConfig, error) {
+	cfg, err := configs.GetConf()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	resp, err := client.JoinedMembers(context.Background(), *roomId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	for _, bridgeCfg := range cfg.Bridges {
+		for resp := range resp.Joined {
+			if bridgeCfg.BotName == resp.String() {
+				return &bridgeCfg, nil
+			}
+		}
+	}
+	return nil, nil
 }

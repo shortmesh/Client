@@ -5,8 +5,12 @@ import (
 	// 	"fmt"
 
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -16,6 +20,7 @@ import (
 	"github.com/shortmesh/core/configs"
 	"github.com/shortmesh/core/contacts"
 	"github.com/shortmesh/core/devices"
+	"github.com/shortmesh/core/messages"
 	"github.com/shortmesh/core/rooms"
 	"github.com/shortmesh/core/syncers"
 	"github.com/shortmesh/core/users"
@@ -185,6 +190,35 @@ func syncAll(source string) error {
 	for _, user := range fetchedUsers {
 		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
 			Callback: func(evt *event.Event) error {
+				/**
+				Checks if rooms have the neccessary Ids
+				**/
+				go func() {
+
+					ok, err := rooms.Find(user.Client, evt.RoomID.String())
+					if err != nil {
+						slog.Error(err.Error())
+					}
+
+					if !ok {
+						bridgeCfg, err := bridges.GetBridgeFromRoom(user.Client, &evt.RoomID)
+						if err != nil {
+							slog.Error(err.Error())
+							return
+						}
+						if bridgeCfg.BotName == evt.Sender.String() {
+							slog.Debug("GetBridgeRoom", "reason", "ignoring")
+							return
+						}
+						if bridgeCfg != nil {
+							slog.Debug("Event syncer", "rooms bridge", bridgeCfg.BotName)
+							err = bridges.GetId(user.Client, bridgeCfg, &evt.RoomID)
+							if err != nil {
+								slog.Error(err.Error())
+							}
+						}
+					}
+				}()
 
 				/**
 				Bridges listener, responsible for outgoing messages
@@ -272,8 +306,17 @@ func (c *Controller) AddBridges() error {
 
 }
 
-func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string) (*id.RoomID, error) {
-	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "deviceId", deviceId, "receiver", receiver)
+func (c *Controller) SendMessage(
+	bridgeName,
+	deviceId,
+	receiver,
+	message,
+	fileExtension,
+	fileContent,
+	groupUrl,
+	replyId string,
+) (*id.EventID, error) {
+	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "replyId", replyId)
 
 	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil && err != sql.ErrNoRows {
@@ -282,10 +325,22 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		return nil, err
 	}
 
+	entityForSearch := receiver
+	if groupUrl != "" {
+		groupUrl := strings.ReplaceAll(groupUrl, `\?`, "?")
+		u, err := url.Parse(groupUrl)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		u.RawQuery = ""
+		entityForSearch = u.String()
+	}
 	roomId, err := noisyRoomIdRequest(
 		c.Client,
 		bridgeCfg,
-		receiver,
+		entityForSearch,
 		deviceId,
 	)
 
@@ -300,14 +355,80 @@ func (c *Controller) SendMessage(bridgeName, deviceId, receiver, message string)
 		return nil, err
 	}
 
-	err = rooms.SendMessage(c.Client, *roomId, message)
+	if fileExtension != "" && fileContent != "" {
+		filepath, err := createTmpFile(fileExtension, fileContent)
+		defer deleteFile(filepath)
+
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		evt, err := messages.SendMediaMessage(c.Client, *roomId, *filepath, message, replyId)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		return evt, nil
+	} else {
+		evt, err := messages.SendMessage(c.Client, *roomId, message, replyId)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		return evt, nil
+	}
+}
+
+func deleteFile(filePath *string) error {
+	if filePath == nil {
+		return nil // Or return an error if you expect it to always exist
+	}
+
+	err := os.Remove(*filePath)
+	if err != nil {
+		slog.Error("failed to delete file", "path", *filePath, "error", err)
+		return err
+	}
+
+	slog.Info("file deleted successfully", "path", *filePath)
+	return nil
+}
+
+func createTmpFile(fileExtension, fileContent string) (*string, error) {
+	data, err := base64.StdEncoding.DecodeString(fileContent)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()
 		return nil, err
 	}
 
-	return roomId, nil
+	mediaDir := "media"
+	if err := os.MkdirAll(mediaDir, 0755); err != nil {
+		slog.Error("failed to create media directory", "error", err)
+		return nil, err
+	}
+
+	pattern := fmt.Sprintf("tmp-*.%s", fileExtension)
+	tmpFile, err := os.CreateTemp(mediaDir, pattern)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		os.Remove(tmpFile.Name())
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	relativePath := filepath.Join(mediaDir, filepath.Base(tmpFile.Name()))
+
+	return &relativePath, nil
 }
 
 func noisyRoomIdRequest(
@@ -319,8 +440,26 @@ func noisyRoomIdRequest(
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
 
-	wg.Add(1)
+	isUrl := false
 
+	if utils.ExtractE164Contact(receiver) == "" {
+		_, err := url.ParseRequestURI(receiver)
+		isUrl = err == nil
+
+		slog.Debug("Noisy room not contact", "receiver", receiver)
+		roomIdStr, err := rooms.GetBridgedId(client, receiver)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		if roomIdStr != "" {
+			newRoomId := id.RoomID(roomIdStr)
+			roomId = &newRoomId
+			return roomId, nil
+		}
+	}
+
+	wg.Add(1)
 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 
 	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
@@ -328,46 +467,75 @@ func noisyRoomIdRequest(
 		EventType: "m.room.message",
 		Callback: func(evt *event.Event) error {
 			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
-			_roomId, err := isContactCallback(client, evt, &receiver)
+			defer func() {
+				syncers.UnRegisterSyncMessageListener(callbackEventId)
+				wg.Done()
+			}()
+			_roomId, err := isContactCallback(client, evt, &receiver, isUrl)
 			if err != nil {
 				slog.Error(err.Error())
 				return err
 			}
 			roomId = _roomId
-			defer wg.Done()
-
-			syncers.UnRegisterSyncMessageListener(callbackEventId)
 
 			return nil
 		},
 	})
 
-	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver)
+	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
 	}
-
 	wg.Wait()
+
 	return roomId, nil
 }
 
-func isContactCallback(client *mautrix.Client, evt *event.Event, receiver *string) (*id.RoomID, error) {
-	contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
-	if len(contactUserIds) != 1 {
-		slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
-		return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
-	}
-	err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, err
-	}
-	roomId, err := rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, err
+func isContactCallback(
+	client *mautrix.Client,
+	evt *event.Event,
+	receiver *string,
+	isUrl bool,
+) (*id.RoomID, error) {
+	var roomId *id.RoomID
+	if isUrl {
+		content := evt.Content.AsMessage().Body
+		resolvedUrl, err := utils.ExtractBracketContent(content)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+
+		resolvedUrl = strings.ReplaceAll(resolvedUrl, "`", "")
+
+		roomIdStr, err := rooms.GetBridgedId(client, resolvedUrl)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		if roomIdStr != "" {
+			newRoomId := id.RoomID(roomIdStr)
+			roomId = &newRoomId
+		}
+	} else {
+		contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
+		if len(contactUserIds) != 1 {
+			slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
+			return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
+		}
+		err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		roomId, err = rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
 	}
 
 	return roomId, nil

@@ -158,7 +158,7 @@ The incoming messages for adding devices routed to the queue:
 ```yaml
 exchange: "bridges.topic"
 binding key: "bridges.topic.add_new_device"
-queue name: {userId}_add_new_device
+queue name: {username}_add_new_device
 ```
 
 ## Incoming messages Queue
@@ -166,7 +166,7 @@ The incoming messages are routed to the queue:
 ```yaml
 exchange: "contacts.topic"
 binding key: "contacts.topic.incoming_messages"
-queue name: {userId}_incoming_messages
+queue name: {username}_incoming_messages
 ```
 
 ### Payload Text|Media
@@ -176,6 +176,8 @@ queue name: {userId}_incoming_messages
     "Type": "",
     "From": "",
     "To": "",
+    "Message": "",
+    "DeviceId": "",
     "Media": {
         "Content": bytes,
         "Info": {

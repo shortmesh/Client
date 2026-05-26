@@ -35,6 +35,7 @@ type BridgeConfig struct {
 	BotName                 string            `yaml:"botname"`
 	UsernameTemplate        string            `yaml:"username_template"`
 	DisplayUsernameTemplate string            `yaml:"display_username_template"`
+	E164InUsername          bool              `yaml:"e164_in_username"`
 	Cmd                     map[string]string `yaml:"cmd"` // ← map instead of slice of maps
 }
 
