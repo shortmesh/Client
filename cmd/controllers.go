@@ -211,10 +211,17 @@ func syncAll(source string) error {
 							return
 						}
 						if bridgeCfg != nil {
-							slog.Debug("Event syncer", "rooms bridge", bridgeCfg.BotName)
-							err = bridges.GetId(user.Client, bridgeCfg, &evt.RoomID)
+							botUsername := id.UserID(bridgeCfg.BotName)
+							roomId, err := bridges.GetBotManagementRoom(user.Client, &botUsername)
 							if err != nil {
 								slog.Error(err.Error())
+								return
+							}
+							if roomId.String() != evt.RoomID.String() {
+								err = bridges.GetId(user.Client, bridgeCfg, &evt.RoomID)
+								if err != nil {
+									slog.Error(err.Error())
+								}
 							}
 						}
 					}
