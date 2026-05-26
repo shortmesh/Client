@@ -105,8 +105,9 @@ func Sync(client *mautrix.Client, pickleKey []byte) error {
 
 			// Process incoming from bridges
 			go func() {
-				for _, syncEventCallback := range syncEventCallbacks {
-					go syncEventCallback.Callback(evt)
+				userCallbackID := client.UserID.String()
+				if callback, exists := syncEventCallbacks[userCallbackID]; exists {
+					go callback.Callback(evt)
 				}
 			}()
 		}
