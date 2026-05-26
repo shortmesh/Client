@@ -131,7 +131,7 @@ func UnRegisterSyncMessageListener(id string) error {
 	return nil
 }
 
-func RegisterSyncMessageListener(syncEventCallback *SyncEventCallback) error {
+func RegisterSyncMessageListener(user *users.Users, syncEventCallback *SyncEventCallback) error {
 	slog.Debug("RegisterSyncMessageListener", "ID", syncEventCallback.ID)
 	if _, ok := syncEventCallbacks[syncEventCallback.ID]; ok {
 		return fmt.Errorf("Event already synced")

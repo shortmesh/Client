@@ -188,13 +188,13 @@ func syncAll(source string) error {
 	// slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
 	for _, user := range fetchedUsers {
-		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+		syncers.RegisterSyncMessageListener(&user, &syncers.SyncEventCallback{
 			Callback: func(evt *event.Event) error {
+
 				/**
 				Checks if rooms have the neccessary Ids
 				**/
 				go func() {
-
 					ok, err := rooms.Find(user.Client, evt.RoomID.String())
 					if err != nil {
 						slog.Error(err.Error())
@@ -315,6 +315,7 @@ func (c *Controller) SendMessage(
 	fileContent,
 	groupUrl,
 	replyId string,
+	user *users.Users,
 ) (*id.EventID, error) {
 	slog.Debug("[+] Sending message", "bridgeName", bridgeName, "replyId", replyId)
 
@@ -342,6 +343,7 @@ func (c *Controller) SendMessage(
 		bridgeCfg,
 		entityForSearch,
 		deviceId,
+		user,
 	)
 
 	if err != nil {
@@ -436,6 +438,7 @@ func noisyRoomIdRequest(
 	bridgeCfg *configs.BridgeConfig,
 	receiver,
 	deviceId string,
+	user *users.Users,
 ) (*id.RoomID, error) {
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
@@ -462,7 +465,7 @@ func noisyRoomIdRequest(
 	wg.Add(1)
 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 
-	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+	syncers.RegisterSyncMessageListener(user, &syncers.SyncEventCallback{
 		ID:        callbackEventId,
 		EventType: "m.room.message",
 		Callback: func(evt *event.Event) error {

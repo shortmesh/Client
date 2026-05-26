@@ -65,11 +65,11 @@ func checkIsQrLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bool, 
 }
 
 func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bool, error) {
-	exchange := RMQExchanges{}
-	defaults.Set(&exchange)
+	// exchange := RMQExchanges{}
+	// defaults.Set(&exchange)
 
-	bindingKey := RMQBindingKeys{}
-	defaults.Set(&bindingKey)
+	// bindingKey := RMQBindingKeys{}
+	// defaults.Set(&bindingKey)
 
 	regexPattern := strings.ReplaceAll(bridgeConfig.Cmd["login-qr-failed"], "%s", ".*")
 	matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)

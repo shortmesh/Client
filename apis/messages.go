@@ -100,6 +100,7 @@ func SendMessage(c *gin.Context) {
 		deviceSendMessage.FileContent,
 		deviceSendMessage.GroupUrl,
 		deviceSendMessage.ReplyId,
+		user,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Not your fault!"})
