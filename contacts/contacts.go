@@ -138,8 +138,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		}
 	}
 
-	username := evt.Sender
-	contact, err := isContactRoom(client, &username)
+	contact, err := processContact(client, evt, bridgeCfg)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
@@ -177,6 +176,59 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	}
 
 	return nil
+}
+
+func processContact(
+	client *mautrix.Client,
+	evt *event.Event,
+	bridgeCfg *configs.BridgeConfig,
+) (*Contacts, error) {
+	username := evt.Sender
+	contact, err := isContactRoom(client, &username)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	if contact != nil {
+		return contact, nil
+	}
+
+	// attempt extraction
+	resp, err := client.GetDisplayName(context.Background(), evt.Sender)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	displayName := resp.DisplayName
+	if bridgeCfg.E164InUsername {
+		localpart := evt.Sender.Localpart()
+		name, err := configs.ExtractComponentByTemplates(bridgeCfg.UsernameTemplate, localpart)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		} else {
+			displayName = name
+		}
+
+		err = CreateContact(client, displayName, &evt.Sender)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+
+		contact, err = FetchContact(client, &evt.Sender)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+	}
+	slog.Debug("Processing contact", "displayName", resp.DisplayName, "processedName", displayName)
+
+	return contact, nil
 }
 
 type IncomingMessagePayloadMediaInfo struct {
@@ -222,7 +274,6 @@ func getPayload(
 
 	var deviceId string
 	for member := range res.Joined {
-		fmt.Printf("Finding device: %s\n", member.Localpart())
 		possibleDeviceId, err := configs.ExtractComponentByTemplates(
 			bridgeCfg.UsernameTemplate,
 			member.Localpart(),
