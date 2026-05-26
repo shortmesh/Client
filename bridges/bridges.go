@@ -85,6 +85,7 @@ func queryCommand(client *mautrix.Client, roomId *id.RoomID, query string) error
 }
 
 func RemoveDevice(client *mautrix.Client, bridgeCfg *configs.BridgeConfig, deviceId string) error {
+	slog.Debug("Removing device", "deviceId", deviceId)
 	cmd := strings.ReplaceAll(bridgeCfg.Cmd["logout"], "%s", deviceId)
 
 	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))

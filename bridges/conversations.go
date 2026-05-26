@@ -1,7 +1,7 @@
 package bridges
 
 import (
-	"fmt"
+	"encoding/json"
 	"log/slog"
 	"regexp"
 	"runtime/debug"
@@ -83,22 +83,45 @@ func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bo
 	return matched, nil
 }
 
-func checkIsLogoutMessage(bridgeCfg *configs.BridgeConfig, evt *event.Event) {
-	if evt.Type == event.StateBridge {
-		fmt.Printf("Yep is state bridge: %s", evt)
+func checkIsLogoutMessage(evt *event.Event) (*map[string]any, error) {
+	raw := map[string]any{}
+	if err := json.Unmarshal(evt.Content.VeryRaw, &raw); err != nil {
+		return nil, err
 	}
+
+	if bridgeState, hasBridgeState := evt.Content.Raw["fi.mau.bridge_state"].(map[string]any); hasBridgeState {
+		return &bridgeState, nil
+	}
+
+	return nil, nil
 }
 
-/*
-- BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
-when list-devices is ran to delete devices which are deactivated
-*/
 func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeCfg *configs.BridgeConfig) error {
 	message := evt.Content.AsMessage().Body
 
 	rabbitmqQueueName := client.UserID.Localpart() + "_add_new_device"
 
-	checkIsLogoutMessage(bridgeCfg, evt)
+	resp, err := checkIsLogoutMessage(evt)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if resp != nil {
+		bridgeState := *resp
+		slog.Debug("Bot state message", "bridgeState", bridgeState)
+		if bridgeState["state_event"] == "BAD_CREDENTIALS" {
+			deviceId := bridgeState["remote_id"]
+			err = RemoveDevice(client, bridgeCfg, deviceId.(string))
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return err
+			}
+		}
+		return nil
+	}
 
 	deviceId, err := checkIfSuccess(*bridgeCfg, message)
 	if err != nil {
@@ -122,7 +145,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 			slog.Error(err.Error())
 			return err
 		}
-		return err
+		return nil
 	}
 
 	isQrLogin, err := checkIsQrLogin(*bridgeCfg, evt)
