@@ -190,7 +190,7 @@ func syncAll(source string) error {
 	for _, user := range fetchedUsers {
 		syncers.RegisterSyncMessageListener(&user, &syncers.SyncEventCallback{
 			Callback: func(evt *event.Event) error {
-
+				slog.Debug("Sync responding event", "type", evt.Type)
 				/**
 				Checks if rooms have the neccessary Ids
 				**/
