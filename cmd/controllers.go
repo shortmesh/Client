@@ -187,9 +187,10 @@ func syncAll(source string) error {
 
 	// slog.Debug("Syncing All", "#users", len(fetchedUsers))
 
+	ignoreBotMessage := true
 	for _, user := range fetchedUsers {
-		syncers.RegisterSyncMessageListener(&user, &syncers.SyncEventCallback{
-			Callback: func(evt *event.Event) error {
+		syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+			Callback: func(evt *event.Event, user *users.Users) error {
 				slog.Debug("Sync responding event", "type", evt.Type)
 				/**
 				Checks if rooms have the neccessary Ids
@@ -206,11 +207,13 @@ func syncAll(source string) error {
 							slog.Error(err.Error())
 							return
 						}
-						if bridgeCfg.BotName == evt.Sender.String() {
-							slog.Debug("GetBridgeRoom", "reason", "ignoring")
-							return
-						}
 						if bridgeCfg != nil {
+							if ignoreBotMessage {
+								if bridgeCfg.BotName == evt.Sender.String() {
+									slog.Debug("GetBridgeRoom", "reason", "ignoring")
+									return
+								}
+							}
 							botUsername := id.UserID(bridgeCfg.BotName)
 							roomId, err := bridges.GetBotManagementRoom(user.Client, &botUsername)
 							if err != nil {
@@ -251,7 +254,8 @@ func syncAll(source string) error {
 
 				return nil
 			},
-			ID: user.Client.UserID.String(),
+			ID:        user.Client.UserID.String(),
+			IgnoreBot: ignoreBotMessage,
 		})
 		err := syncWatcher.Add(user)
 		if err != nil {
@@ -472,10 +476,12 @@ func noisyRoomIdRequest(
 	wg.Add(1)
 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 
-	syncers.RegisterSyncMessageListener(user, &syncers.SyncEventCallback{
+	ignoreBotMessage := false
+	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
 		ID:        callbackEventId,
 		EventType: "m.room.message",
-		Callback: func(evt *event.Event) error {
+		IgnoreBot: ignoreBotMessage,
+		Callback: func(evt *event.Event, user *users.Users) error {
 			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
 			defer func() {
 				syncers.UnRegisterSyncMessageListener(callbackEventId)

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/shortmesh/core/bridges"
@@ -18,10 +19,11 @@ import (
 type SyncEventCallback struct {
 	ID        string
 	EventType string
-	Callback  func(evt *event.Event) error
+	Callback  func(evt *event.Event, user *users.Users) error
+	IgnoreBot bool
 }
 
-type SyncUserCallback func(client *mautrix.Client, pickleKey []byte) error
+type SyncUserCallback func(client *mautrix.Client, pickleKey []byte, user *users.Users) error
 
 type SyncWatcher struct {
 	Cache    []id.UserID
@@ -37,7 +39,7 @@ func (s *SyncWatcher) Add(user users.Users) error {
 		go func() {
 			slog.Debug("SyncWatcher", "Adding", user.Client.UserID)
 			s.Cache = append(s.Cache, user.Client.UserID)
-			err := s.SyncUser(user.Client, user.PickleKey)
+			err := s.SyncUser(user.Client, user.PickleKey, &user)
 			if err != nil {
 				slog.Error(err.Error())
 				s.Remove(user)
@@ -66,7 +68,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 	defer s.Wg.Done()
 }
 
-func Sync(client *mautrix.Client, pickleKey []byte) error {
+func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 	slog.Debug("Syncing user", "UserID", client.UserID.String(), "DeviceID", client.DeviceID)
 	err := ParseRoomSubroutine(client, true, nil)
 	if err != nil {
@@ -104,12 +106,18 @@ func Sync(client *mautrix.Client, pickleKey []byte) error {
 			// slog.Debug("Incoming message", "message", json)
 
 			// Process incoming from bridges
-			go func() {
-				userCallbackID := client.UserID.String()
-				if callback, exists := syncEventCallbacks[userCallbackID]; exists {
-					go callback.Callback(evt)
+			// go func() {
+			// 	userCallbackID := client.UserID.String()
+			// 	if callback, exists := syncEventCallbacks[userCallbackID]; exists {
+			// 		go callback.Callback(evt, user)
+			// 	}
+			// }()
+			userCallbackID := client.UserID.String()
+			for key := range syncEventCallbacks {
+				if strings.HasPrefix(key, userCallbackID) {
+					go syncEventCallbacks[key].Callback(evt, user)
 				}
-			}()
+			}
 		}
 	}()
 
@@ -132,7 +140,7 @@ func UnRegisterSyncMessageListener(id string) error {
 	return nil
 }
 
-func RegisterSyncMessageListener(user *users.Users, syncEventCallback *SyncEventCallback) error {
+func RegisterSyncMessageListener(syncEventCallback *SyncEventCallback) error {
 	slog.Debug("RegisterSyncMessageListener", "ID", syncEventCallback.ID)
 	if _, ok := syncEventCallbacks[syncEventCallback.ID]; ok {
 		return fmt.Errorf("Event already synced")
