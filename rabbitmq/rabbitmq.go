@@ -86,6 +86,20 @@ func start(
 		return nil, nil, err
 	}
 
+	q, err := ch.QueueDeclare(
+		queueName, // name
+		true,      // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, nil, err
+	}
+
 	if exchange != "" {
 		err = ch.ExchangeDeclare(
 			exchange, // name
@@ -102,33 +116,18 @@ func start(
 			return nil, nil, err
 		}
 
-	}
-
-	q, err := ch.QueueDeclare(
-		queueName, // name
-		true,      // durable
-		false,     // delete when unused
-		false,     // exclusive
-		false,     // no-wait
-		nil,       // arguments
-	)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, nil, err
-	}
-
-	err = ch.QueueBind(
-		q.Name,     // queue name
-		bindingKey, // routing key
-		exchange,   // exchange name
-		false,      // no-wait
-		nil,        // arguments
-	)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, nil, err
+		err = ch.QueueBind(
+			q.Name,     // queue name
+			bindingKey, // routing key
+			exchange,   // exchange name
+			false,      // no-wait
+			nil,        // arguments
+		)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, nil, err
+		}
 	}
 
 	return conn, ch, nil

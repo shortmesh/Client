@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 
 	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
@@ -215,6 +216,7 @@ func processContact(
 		if err != nil {
 			slog.Error(err.Error())
 		} else {
+			name = strings.Replace(name, "+", "", 1)
 			displayName = name
 		}
 
