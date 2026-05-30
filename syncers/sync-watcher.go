@@ -125,7 +125,7 @@ func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 						"boundRoom", syncEventCallback.BindRoom,
 					)
 					if syncEventCallback.BindRoom == nil || syncEventCallback.BindRoom == &evt.RoomID {
-						go syncEventCallbacks[key].Callback(evt, user)
+						go syncEventCallback.Callback(evt, user)
 					}
 				}
 			}
