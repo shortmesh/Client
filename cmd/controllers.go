@@ -354,7 +354,6 @@ func (c *Controller) SendMessage(
 		bridgeCfg,
 		entityForSearch,
 		deviceId,
-		user,
 	)
 
 	if err != nil {
@@ -449,7 +448,6 @@ func noisyRoomIdRequest(
 	bridgeCfg *configs.BridgeConfig,
 	receiver,
 	deviceId string,
-	user *users.Users,
 ) (*id.RoomID, error) {
 	var wg sync.WaitGroup
 	var roomId *id.RoomID
@@ -477,10 +475,18 @@ func noisyRoomIdRequest(
 	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 
 	ignoreBotMessage := false
+	botUsername := id.UserID(bridgeCfg.BotName)
+	mngRoom, err := bridges.GetBotManagementRoom(client, &botUsername)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
 	syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
 		ID:        callbackEventId,
 		EventType: "m.room.message",
 		IgnoreBot: ignoreBotMessage,
+		BindRoom:  mngRoom,
 		Callback: func(evt *event.Event, user *users.Users) error {
 			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
 			defer func() {
@@ -498,7 +504,7 @@ func noisyRoomIdRequest(
 		},
 	})
 
-	err := bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
+	err = bridges.StartConversation(client, bridgeCfg, deviceId, receiver, isUrl)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
