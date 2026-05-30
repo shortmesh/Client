@@ -116,9 +116,9 @@ func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 			userCallbackID := client.UserID.String()
 			for key := range syncEventCallbacks {
 				if strings.HasPrefix(key, userCallbackID) {
-					slog.Debug("Sync scanning callbacks found", "key", key, "userCallbackId", userCallbackID)
 					syncEventCallback := syncEventCallbacks[key]
 					if syncEventCallback.BindRoom == nil || syncEventCallback.BindRoom == &evt.RoomID {
+						slog.Debug("Sync scanning callbacks found", "key", key, "userCallbackId", userCallbackID)
 						go syncEventCallbacks[key].Callback(evt, user)
 					}
 				}
