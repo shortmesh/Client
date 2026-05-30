@@ -27,7 +27,7 @@ type SyncEventCallback struct {
 type SyncUserCallback func(client *mautrix.Client, pickleKey []byte, user *users.Users) error
 
 type SyncWatcher struct {
-	Cache    []id.UserID
+	Cache    []string
 	SyncUser SyncUserCallback
 	Wg       *sync.WaitGroup
 }
@@ -35,11 +35,11 @@ type SyncWatcher struct {
 var syncEventCallbacks = make(map[string]*SyncEventCallback)
 
 func (s *SyncWatcher) Add(user users.Users) error {
-	if !slices.Contains(s.Cache, user.Client.UserID) {
+	if !slices.Contains(s.Cache, user.Client.UserID.String()) {
 		s.Wg.Add(1)
 		go func(user *users.Users) {
 			slog.Debug("SyncWatcher", "Adding", user.Client.UserID)
-			s.Cache = append(s.Cache, user.Client.UserID)
+			s.Cache = append(s.Cache, user.Client.UserID.String())
 			err := s.SyncUser(user.Client, user.PickleKey, user)
 			if err != nil {
 				slog.Error(err.Error())
@@ -55,7 +55,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 	slog.Debug("SyncWatcher", "Removing", user.Client.UserID)
 	removeIndex := -1
 	for index, cachedUserId := range s.Cache {
-		if cachedUserId == user.Client.UserID {
+		if cachedUserId == user.Client.UserID.String() {
 			removeIndex = index
 			break
 		}

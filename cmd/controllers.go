@@ -268,7 +268,7 @@ func syncAll(source string) error {
 
 func BootupSyncUsers() error {
 	syncWatcher = syncers.SyncWatcher{
-		Cache:    make([]id.UserID, 0),
+		Cache:    make([]string, 0),
 		Wg:       &sync.WaitGroup{},
 		SyncUser: syncers.Sync,
 	}
