@@ -117,14 +117,16 @@ func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 			for key := range syncEventCallbacks {
 				if strings.HasPrefix(key, userCallbackID) {
 					syncEventCallback := syncEventCallbacks[key]
+					match := syncEventCallback.BindRoom == &evt.RoomID
 					slog.Debug(
 						"Sync scanning callbacks found",
 						"key", key,
 						"userCallbackId", userCallbackID,
 						"roomId", evt.RoomID,
 						"boundRoom", syncEventCallback.BindRoom,
+						"match", match,
 					)
-					if syncEventCallback.BindRoom == nil || syncEventCallback.BindRoom == &evt.RoomID {
+					if syncEventCallback.BindRoom == nil || match {
 						go syncEventCallback.Callback(evt, user)
 					}
 				}
