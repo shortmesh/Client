@@ -37,7 +37,90 @@ type Controller struct {
 var syncWatcher syncers.SyncWatcher
 
 func (c *Controller) GetDevices() ([]devices.Devices, error) {
-	devices, err := (&devices.Devices{Client: c.Client}).GetDevices()
+
+	ignoreBotMessage := false
+
+	confBridges, err := configs.GetBridgeConfigs()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(confBridges))
+
+	user, err := users.FetchUser(c.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	for _, conf := range confBridges {
+		slog.Debug("GetDevices", "devices", conf.Name)
+		go func(bridgeCfg *configs.BridgeConfig) {
+			callbackEventId := c.Client.UserID.String() + "_get_devices_" + bridgeCfg.Name
+			botUsername := id.UserID(conf.BotName)
+			mngRoom, err := bridges.GetBotManagementRoom(user.Client, &botUsername)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+
+			syncers.RegisterSyncMessageListener(&syncers.SyncEventCallback{
+				ID:        callbackEventId,
+				EventType: "m.room.message",
+				IgnoreBot: ignoreBotMessage,
+				BindRoom:  mngRoom,
+				Callback: func(evt *event.Event, user *users.Users) error {
+					defer func() {
+						syncers.UnRegisterSyncMessageListener(callbackEventId)
+						wg.Done()
+					}()
+
+					parsedDevices, err := devices.ParseListDevices(evt.Content.AsMessage().Body)
+					if err != nil {
+						slog.Error(err.Error())
+						return err
+					}
+
+					device := (&devices.Devices{
+						Client:     user.Client,
+						DeviceId:   "",
+						BridgeName: bridgeCfg.Name,
+					})
+					err = device.RemoveAllForBridge(bridgeCfg.Name)
+					if err != nil {
+						slog.Error(err.Error())
+						return err
+					}
+
+					for _, d := range parsedDevices {
+						device.DeviceId = d.Device
+						if d.Connected {
+							err = device.Save()
+							if err != nil {
+								slog.Error(err.Error())
+								debug.PrintStack()
+								return err
+							}
+						}
+					}
+
+					return nil
+				},
+			})
+
+			err = bridges.QueryDevices(user.Client, bridgeCfg)
+			if err != nil {
+				slog.Error(err.Error())
+				return
+			}
+		}(conf)
+	}
+
+	wg.Wait()
+	devices, err := (&devices.Devices{Client: user.Client}).GetDevices()
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -449,7 +532,6 @@ func noisyRoomIdRequest(
 	receiver,
 	deviceId string,
 ) (*id.RoomID, error) {
-	var wg sync.WaitGroup
 	var roomId *id.RoomID
 
 	isUrl := false
@@ -471,9 +553,10 @@ func noisyRoomIdRequest(
 		}
 	}
 
+	var wg sync.WaitGroup
 	wg.Add(1)
-	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 
+	callbackEventId := client.UserID.String() + bridgeCfg.Name + receiver
 	ignoreBotMessage := false
 	botUsername := id.UserID(bridgeCfg.BotName)
 	mngRoom, err := bridges.GetBotManagementRoom(client, &botUsername)

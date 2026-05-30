@@ -32,6 +32,31 @@ type RMQBindingKeys struct {
 	AddNewDevice string `default:"bridges.topic.add_new_device"`
 }
 
+func QueryDevices(client *mautrix.Client, bridgeCfg *configs.BridgeConfig) error {
+	query := bridgeCfg.Cmd["devices"]
+
+	roomId, err := GetBotManagementRoom(client, (*id.UserID)(&bridgeCfg.BotName))
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+
+	if roomId == nil {
+		slog.Error("* Parse device Error", "reason", "Bot managment room not found", "bridge", bridgeCfg.Name)
+		return nil
+	}
+
+	err = queryCommand(client, roomId, query)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+}
+
 func StartConversation(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
