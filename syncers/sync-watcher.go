@@ -36,15 +36,15 @@ var syncEventCallbacks = make(map[string]*SyncEventCallback)
 func (s *SyncWatcher) Add(user users.Users) error {
 	if !slices.Contains(s.Cache, user.Client.UserID) {
 		s.Wg.Add(1)
-		go func() {
+		go func(user *users.Users) {
 			slog.Debug("SyncWatcher", "Adding", user.Client.UserID)
 			s.Cache = append(s.Cache, user.Client.UserID)
-			err := s.SyncUser(user.Client, user.PickleKey, &user)
+			err := s.SyncUser(user.Client, user.PickleKey, user)
 			if err != nil {
 				slog.Error(err.Error())
-				s.Remove(user)
+				s.Remove(*user)
 			}
-		}()
+		}(&user)
 
 	}
 	return nil
@@ -115,6 +115,7 @@ func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 			userCallbackID := client.UserID.String()
 			for key := range syncEventCallbacks {
 				if strings.HasPrefix(key, userCallbackID) {
+					slog.Debug("Sync scanning callbacks found", "key", key, "userCallbackId", userCallbackID)
 					go syncEventCallbacks[key].Callback(evt, user)
 				}
 			}
