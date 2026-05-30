@@ -172,7 +172,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	err = rabbitmq.Sender(
 		client,
 		*payload,
-		exchange.IncomingMessage,
+		"",
 		bindingKey.IncomingMessage,
 		queueName,
 	)
