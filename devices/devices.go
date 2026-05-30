@@ -2,7 +2,6 @@ package devices
 
 import (
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"regexp"
 	"runtime/debug"
@@ -134,7 +133,6 @@ type ParsedDevices struct {
 
 func ParseListDevices(message string) ([]ParsedDevices, error) {
 	listed := strings.Split(message, "\n")
-	fmt.Println(listed)
 
 	var parsedDevices []ParsedDevices
 	for _, list := range listed {
