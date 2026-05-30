@@ -109,11 +109,11 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
-	// // ignore if user
-	// if client.UserID == evt.Sender {
-	// 	slog.Info("Incoming message", "status", "ignoring", "reason", "user")
-	// 	return nil
-	// }
+	// ignore if user
+	if client.UserID == evt.Sender {
+		slog.Info("Incoming message", "status", "ignoring", "reason", "user")
+		return nil
+	}
 
 	// ignore if device
 	isBridgeUser, err := configs.CheckUserBridgeBotTemplate(*bridgeCfg, evt.Sender.String())
