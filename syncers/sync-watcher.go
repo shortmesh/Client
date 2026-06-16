@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/shortmesh/core/bridges"
@@ -18,13 +19,15 @@ import (
 type SyncEventCallback struct {
 	ID        string
 	EventType string
-	Callback  func(evt *event.Event) error
+	Callback  func(evt *event.Event, user *users.Users) error
+	IgnoreBot bool
+	BindRoom  *id.RoomID
 }
 
-type SyncUserCallback func(client *mautrix.Client, pickleKey []byte) error
+type SyncUserCallback func(client *mautrix.Client, pickleKey []byte, user *users.Users) error
 
 type SyncWatcher struct {
-	Cache    []id.UserID
+	Cache    []string
 	SyncUser SyncUserCallback
 	Wg       *sync.WaitGroup
 }
@@ -32,17 +35,17 @@ type SyncWatcher struct {
 var syncEventCallbacks = make(map[string]*SyncEventCallback)
 
 func (s *SyncWatcher) Add(user users.Users) error {
-	if !slices.Contains(s.Cache, user.Client.UserID) {
+	if !slices.Contains(s.Cache, user.Client.UserID.String()) {
 		s.Wg.Add(1)
-		go func() {
+		go func(user *users.Users) {
 			slog.Debug("SyncWatcher", "Adding", user.Client.UserID)
-			s.Cache = append(s.Cache, user.Client.UserID)
-			err := s.SyncUser(user.Client, user.PickleKey)
+			s.Cache = append(s.Cache, user.Client.UserID.String())
+			err := s.SyncUser(user.Client, user.PickleKey, user)
 			if err != nil {
 				slog.Error(err.Error())
-				s.Remove(user)
+				s.Remove(*user)
 			}
-		}()
+		}(&user)
 
 	}
 	return nil
@@ -52,7 +55,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 	slog.Debug("SyncWatcher", "Removing", user.Client.UserID)
 	removeIndex := -1
 	for index, cachedUserId := range s.Cache {
-		if cachedUserId == user.Client.UserID {
+		if cachedUserId == user.Client.UserID.String() {
 			removeIndex = index
 			break
 		}
@@ -66,7 +69,7 @@ func (s *SyncWatcher) Remove(user users.Users) {
 	defer s.Wg.Done()
 }
 
-func Sync(client *mautrix.Client, pickleKey []byte) error {
+func Sync(client *mautrix.Client, pickleKey []byte, user *users.Users) error {
 	slog.Debug("Syncing user", "UserID", client.UserID.String(), "DeviceID", client.DeviceID)
 	err := ParseRoomSubroutine(client, true, nil)
 	if err != nil {
@@ -104,11 +107,24 @@ func Sync(client *mautrix.Client, pickleKey []byte) error {
 			// slog.Debug("Incoming message", "message", json)
 
 			// Process incoming from bridges
-			go func() {
-				for _, syncEventCallback := range syncEventCallbacks {
-					go syncEventCallback.Callback(evt)
+			// go func() {
+			// 	userCallbackID := client.UserID.String()
+			// 	if callback, exists := syncEventCallbacks[userCallbackID]; exists {
+			// 		go callback.Callback(evt, user)
+			// 	}
+			// }()
+			userCallbackID := client.UserID.String()
+			for key := range syncEventCallbacks {
+				if strings.HasPrefix(key, userCallbackID) {
+					syncEventCallback := syncEventCallbacks[key]
+					if syncEventCallback.BindRoom != nil {
+						if syncEventCallback.BindRoom.String() != evt.RoomID.String() {
+							continue
+						}
+					}
+					go syncEventCallback.Callback(evt, user)
 				}
-			}()
+			}
 		}
 	}()
 

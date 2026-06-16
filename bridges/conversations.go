@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"encoding/json"
 	"log/slog"
 	"regexp"
 	"runtime/debug"
@@ -65,11 +66,11 @@ func checkIsQrLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bool, 
 }
 
 func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bool, error) {
-	exchange := RMQExchanges{}
-	defaults.Set(&exchange)
+	// exchange := RMQExchanges{}
+	// defaults.Set(&exchange)
 
-	bindingKey := RMQBindingKeys{}
-	defaults.Set(&bindingKey)
+	// bindingKey := RMQBindingKeys{}
+	// defaults.Set(&bindingKey)
 
 	regexPattern := strings.ReplaceAll(bridgeConfig.Cmd["login-qr-failed"], "%s", ".*")
 	matched, err := regexp.MatchString(regexPattern, evt.Content.AsMessage().Body)
@@ -82,15 +83,46 @@ func checkIsFailedLogin(bridgeConfig configs.BridgeConfig, evt *event.Event) (bo
 	return matched, nil
 }
 
-/*
-- BAD_CREDENTIALS used when device has been disconnected (this can receive an incoming message), this can be used
-when list-devices is ran to delete devices which are deactivated
-*/
+func checkIsLogoutMessage(evt *event.Event) (*map[string]any, error) {
+	raw := map[string]any{}
+	if err := json.Unmarshal(evt.Content.VeryRaw, &raw); err != nil {
+		return nil, err
+	}
+
+	if bridgeState, hasBridgeState := evt.Content.Raw["fi.mau.bridge_state"].(map[string]any); hasBridgeState {
+		return &bridgeState, nil
+	}
+
+	return nil, nil
+}
+
 func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeCfg *configs.BridgeConfig) error {
-	slog.Debug("Bot message", "botname", bridgeCfg.Name, "msg", evt.Content.AsMessage().Body)
 	message := evt.Content.AsMessage().Body
 
 	rabbitmqQueueName := client.UserID.Localpart() + "_add_new_device"
+
+	resp, err := checkIsLogoutMessage(evt)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	if resp != nil {
+		bridgeState := *resp
+		slog.Debug("Bot state message", "bridgeState", bridgeState)
+		if bridgeState["state_event"] == "BAD_CREDENTIALS" {
+			deviceId := bridgeState["remote_id"]
+			err = RemoveDevice(client, bridgeCfg, deviceId.(string))
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return err
+			}
+		}
+		return nil
+	}
+
 	deviceId, err := checkIfSuccess(*bridgeCfg, message)
 	if err != nil {
 		slog.Error(err.Error())
@@ -113,7 +145,7 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 			slog.Error(err.Error())
 			return err
 		}
-		return err
+		return nil
 	}
 
 	isQrLogin, err := checkIsQrLogin(*bridgeCfg, evt)

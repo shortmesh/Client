@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 
 	"github.com/creasty/defaults"
 	"github.com/shortmesh/core/configs"
@@ -108,6 +109,12 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 		return nil
 	}
 
+	// ignore if user
+	if client.UserID == evt.Sender {
+		slog.Info("Incoming message", "status", "ignoring", "reason", "user")
+		return nil
+	}
+
 	// ignore if device
 	isBridgeUser, err := configs.CheckUserBridgeBotTemplate(*bridgeCfg, evt.Sender.String())
 	if err != nil {
@@ -166,7 +173,7 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	err = rabbitmq.Sender(
 		client,
 		*payload,
-		exchange.IncomingMessage,
+		"",
 		bindingKey.IncomingMessage,
 		queueName,
 	)
@@ -208,8 +215,8 @@ func processContact(
 		name, err := configs.ExtractComponentByTemplates(bridgeCfg.UsernameTemplate, localpart)
 		if err != nil {
 			slog.Error(err.Error())
-			debug.PrintStack()
 		} else {
+			name = strings.Replace(name, "+", "", 1)
 			displayName = name
 		}
 

@@ -115,7 +115,7 @@ func (d *DeviceDB) Save(deviceId, bridgeName string) error {
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO devices (device_id, bridge_name, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)
+		INSERT OR IGNORE INTO devices (device_id, bridge_name, timestamp) VALUES (?, ?, CURRENT_TIMESTAMP)
 	`)
 	if err != nil {
 		return err
@@ -155,6 +155,39 @@ func (d *DeviceDB) delete(deviceId string) error {
 	defer stmt.Close()
 
 	_, err = stmt.Exec(deviceId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	return nil
+
+}
+
+func (d *DeviceDB) deleteAllForBridge(bridgeName string) error {
+	tx, err := d.connection.Begin()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	stmt, err := tx.Prepare(`DELETE FROM devices WHERE bridge_name = ?`)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	_, err = stmt.Exec(bridgeName)
 	if err != nil {
 		slog.Error(err.Error())
 		debug.PrintStack()

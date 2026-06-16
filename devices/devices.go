@@ -3,7 +3,9 @@ package devices
 import (
 	"database/sql"
 	"log/slog"
+	"regexp"
 	"runtime/debug"
+	"strings"
 
 	"maunium.net/go/mautrix"
 )
@@ -90,6 +92,23 @@ func (d *Devices) GetDevices() ([]Devices, error) {
 	return devices, nil
 }
 
+func (d *Devices) RemoveAllForBridge(bridgeName string) error {
+	devicesDb, err := GetDeviceDB(d.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = devicesDb.deleteAllForBridge(bridgeName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
 func (d *Devices) Remove() error {
 	devicesDb, err := GetDeviceDB(d.Client)
 	if err != nil {
@@ -105,4 +124,32 @@ func (d *Devices) Remove() error {
 		return err
 	}
 	return nil
+}
+
+type ParsedDevices struct {
+	Device    string
+	Connected bool
+}
+
+func ParseListDevices(message string) ([]ParsedDevices, error) {
+	listed := strings.Split(message, "\n")
+
+	var parsedDevices []ParsedDevices
+	for _, list := range listed {
+		re := regexp.MustCompile(`^\*?\s*` + "`" + `(?P<id>[^` + "`" + `]+)` + "`" + `.*` + "`" + `(?P<status>[^` + "`" + `]+)` + "`" + `\s*$`)
+
+		matches := re.FindStringSubmatch(list)
+		if matches == nil {
+			continue
+		}
+
+		status := matches[re.SubexpIndex("status")] == "CONNECTED"
+		deviceId := matches[re.SubexpIndex("id")]
+
+		parsedDevices = append(parsedDevices, ParsedDevices{
+			Device:    deviceId,
+			Connected: status,
+		})
+	}
+	return parsedDevices, nil
 }

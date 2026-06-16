@@ -22,6 +22,10 @@ func Sender(client *mautrix.Client, message string, exchange, routingKey, queueN
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	if exchange == "" {
+		routingKey = queueName
+	}
+
 	err = ch.PublishWithContext(ctx,
 		exchange,   // exchange
 		routingKey, // routing key
