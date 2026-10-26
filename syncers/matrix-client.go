@@ -6,7 +6,6 @@ import (
 	"log"
 	"log/slog"
 	"runtime/debug"
-	"sync"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
@@ -14,7 +13,6 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-var mutex sync.Mutex
 var JoinedRoomWatchers = make(map[string]func() (bool, error))
 
 type MatrixClient struct {
@@ -125,6 +123,7 @@ func (m *MatrixClient) Sync(ch chan *event.Event) error {
 }
 
 func GenerateAndUploadClientKeys(cryptoHelper *cryptohelper.CryptoHelper) (string, error) {
+	slog.Debug("* GenerateAndUploadClientKeys....")
 	ctx := context.Background()
 	machine := cryptoHelper.Machine()
 

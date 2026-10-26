@@ -26,7 +26,7 @@ type ClientJsonRequest struct {
 
 func validatePassword(password string) (string, error) {
 	// Password should be at least 7 characters
-	if len(password) < 8 {
+	if len(password) < 7 {
 		return "", fmt.Errorf("password must be at least 7 characters long")
 	}
 

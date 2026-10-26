@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"mime"
 	"os"
@@ -9,8 +10,10 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/shortmesh/core/utils"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -18,14 +21,49 @@ func SendMessage(
 	client *mautrix.Client,
 	roomId id.RoomID,
 	message,
-	replyId string,
+	replyId,
+	displayNameTemplate string,
 ) (*id.EventID, error) {
 	slog.Debug("SendMessage", "msg", message, "roomId", roomId)
 	ctx := context.Background()
 	content := event.MessageEventContent{
 		MsgType: event.MsgText,
-		Body:    message,
+		// Body:    message,
 	}
+	mentions := utils.ExtractAllE164ForTagging(message)
+
+	if len(mentions) > 0 {
+		resp, err := client.JoinedMembers(ctx, roomId)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+		} else {
+			var availableMentions []id.UserID
+			for _, mention := range mentions {
+				for userId, member := range resp.Joined {
+					if utils.ExtractTemplateValue(displayNameTemplate, member.DisplayName) == mention {
+						message = strings.ReplaceAll(
+							message,
+							fmt.Sprintf("@%s", mention),
+							fmt.Sprintf("[%s](https://matrix.to/#/%s)", member.DisplayName, userId.String()),
+						)
+						availableMentions = append(availableMentions, userId)
+						break
+					}
+				}
+			}
+			if len(availableMentions) > 0 {
+				// content.Format = event.FormatHTML
+				content = format.RenderMarkdown(message, true, true)
+				content.Mentions = &event.Mentions{
+					UserIDs: availableMentions,
+				}
+			}
+		}
+	} else {
+		content.Body = message
+	}
+
 	if replyId != "" {
 		content.RelatesTo = &event.RelatesTo{
 			InReplyTo: &event.InReplyTo{

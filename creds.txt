@@ -1,0 +1,11 @@
+sherlock11
+EsU8 Nz6T 8GHE TpGC cqB3 qS1o Dkte amww VUdw eh9G dxco NRNr
+
+{
+    "time":"2026-10-24T12:37:10.26233+01:00",
+    "level":"DEBUG","msg":"authenticating",
+    "deviceId":"8V1hgix2uV",
+    "accessToken":"mct_jpNRO6OSwr75SjoMgyGtiJh84zqFIO_ngbhZ2",
+    "password":".sh@221Bbs",
+    "pickleKey":"OwY0tM+OuEQYunyqwjVqmfst1O1HyElyXxPNPNhQ3eI="
+}

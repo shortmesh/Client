@@ -119,3 +119,96 @@ func ExtractE164Contact(message string) string {
 	re := regexp.MustCompile(`\+[1-9]\d{6,14}`)
 	return re.FindString(message)
 }
+
+func ExtractAllE164ForTagging(input string) []string {
+	// Regex pattern: matches '@' followed by '+' and 1 to 15 digits
+	re := regexp.MustCompile(`@(\+\d{1,15})`)
+
+	// FindAllStringSubmatch with -1 finds all occurrences
+	matches := re.FindAllStringSubmatch(input, -1)
+
+	var results []string
+	for _, match := range matches {
+		if len(match) > 1 {
+			results = append(results, match[1]) // Append the captured group (+ and digits)
+		}
+	}
+
+	return results
+}
+
+func MatchesTemplate(template, input string) bool {
+	placeholder := "{{.}}"
+
+	// Split the template by the placeholder
+	parts := strings.Split(template, placeholder)
+	if len(parts) == 1 {
+		// If no placeholder is found, check for an exact match
+		return input == template
+	}
+
+	// Build a dynamic regex pattern
+	var sb strings.Builder
+	sb.WriteString("^")
+	for i, part := range parts {
+		// QuoteMeta escapes any special regex characters in the template text
+		sb.WriteString(regexp.QuoteMeta(part))
+
+		// Insert a general wildcard (.*) where "{{.}}" was located
+		if i < len(parts)-1 {
+			sb.WriteString(`.*`)
+		}
+	}
+	sb.WriteString("$")
+
+	// Compile and match against the input string
+	re, err := regexp.Compile(sb.String())
+	if err != nil {
+		return false
+	}
+
+	return re.MatchString(input)
+}
+
+// ExtractTemplateValue checks if the input matches the template and returns
+// the value placed in "{{.}}". Returns an empty string if it's not a match.
+func ExtractTemplateValue(template, input string) string {
+	placeholder := "{{.}}"
+
+	// Split the template by the placeholder
+	parts := strings.Split(template, placeholder)
+	if len(parts) == 1 {
+		if input == template {
+			return "" // Template has no placeholder, but matched text exactly
+		}
+		return ""
+	}
+
+	// Build a dynamic regex pattern with capturing groups around the placeholder
+	var sb strings.Builder
+	sb.WriteString("^")
+	for i, part := range parts {
+		// QuoteMeta escapes special regex characters in the template text
+		sb.WriteString(regexp.QuoteMeta(part))
+
+		// Insert a capturing group (.*) where "{{.}}" was located
+		if i < len(parts)-1 {
+			sb.WriteString(`(.*)`)
+		}
+	}
+	sb.WriteString("$")
+
+	// Compile and match against the input string
+	re, err := regexp.Compile(sb.String())
+	if err != nil {
+		return ""
+	}
+
+	// FindStringSubmatch returns the full match followed by captured groups
+	match := re.FindStringSubmatch(input)
+	if len(match) > 1 {
+		return match[1] // Returns the value captured by the first (.*)
+	}
+
+	return "" // Returns blank if no match
+}

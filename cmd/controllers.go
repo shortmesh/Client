@@ -466,7 +466,13 @@ func (c *Controller) SendMessage(
 		}
 		return evt, nil
 	} else {
-		evt, err := messages.SendMessage(c.Client, *roomId, message, replyId)
+		evt, err := messages.SendMessage(
+			c.Client,
+			*roomId,
+			message,
+			replyId,
+			bridgeCfg.DisplayUsernameTemplate,
+		)
 		if err != nil {
 			slog.Error(err.Error())
 			debug.PrintStack()
