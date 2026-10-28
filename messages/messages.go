@@ -58,6 +58,8 @@ func SendMessage(
 				content.Mentions = &event.Mentions{
 					UserIDs: availableMentions,
 				}
+			} else {
+				content.Body = message
 			}
 		}
 	} else {
