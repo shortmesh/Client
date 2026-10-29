@@ -40,7 +40,7 @@ func SendMessage(
 		} else {
 			var availableMentions []id.UserID
 			for _, mention := range mentions {
-				slog.Debug("Checking mentions: ", "mention", mention, "members", resp.Joined)
+				slog.Debug("Checking mentions", "mention", mention, "members", resp.Joined)
 				for userId, member := range resp.Joined {
 					if utils.ExtractTemplateValue(displayNameTemplate, member.DisplayName) == mention {
 						message = strings.ReplaceAll(

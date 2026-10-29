@@ -651,3 +651,7 @@ func isContactCallback(
 
 	return roomId, nil
 }
+
+func (c *Controller) GetGroupInfo() {
+
+}
