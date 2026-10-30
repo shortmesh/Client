@@ -22,6 +22,45 @@ header_timestamp = time
 nonce = secrets.token_urlsafe()
 # nonce = "0000000000000000"
 
+def get_info(username):
+    url = f"http://localhost:8080/api/v1/info"
+    payload = {
+        "username" : username,
+    }
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("GET", "/api/v1/info", f_payload)
+    print("- header:", header)
+
+    response = requests.get(url, json=payload, headers=header)
+
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        print(json.dumps(response.json(), indent=4))
+
+def get_group_info(username, platform_name, device_id, group_url):
+    url = f"http://localhost:8080/api/v1/group/info"
+    payload = {
+        "username" : username,
+        "platform_name" : platform_name,
+        "device_id" : device_id,
+        "group_url" : group_url,
+    }
+    f_payload = json.dumps(payload)
+    print("- payload:", f_payload)
+
+    header = get_header("GET", "/api/v1/group/info", f_payload)
+    print("- header:", header)
+
+    response = requests.get(url, json=payload, headers=header)
+
+    response.raise_for_status()
+
+    if response.status_code == 200:
+        print(json.dumps(response.json(), indent=4))
+
 def get_signature(method, path, body):
     string_to_sign = id.encode() + method + path + header_timestamp.encode() + nonce.encode() + body
     secret = config_data["mas_client_secret"].encode()
@@ -264,5 +303,22 @@ if __name__ == "__main__":
         file_path = sys.argv[7]
         try:
             send_message_media(username, platformName, deviceId, contact, message, file_path)
+        except Exception as error:
+            print(error)
+
+    elif sys.argv[1] == "--group-info":
+        username = sys.argv[2]
+        platformName = sys.argv[3]
+        deviceId = sys.argv[4]
+        groupUrl = sys.argv[5]
+        try:
+            get_group_info(username, platformName, deviceId, groupUrl)
+        except Exception as error:
+            print(error)
+
+    elif sys.argv[1] == "--info":
+        username = sys.argv[2]
+        try:
+            get_info(username)
         except Exception as error:
             print(error)

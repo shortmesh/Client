@@ -75,7 +75,8 @@ func RestAPIRoutines() {
 		secured.POST(fmt.Sprintf("/api/v%d/devices/:deviceId/message", apiVersion), apis.SendMessage)
 		secured.DELETE(fmt.Sprintf("/api/v%d/devices", apiVersion), apis.RemoveDevices)
 		secured.DELETE(fmt.Sprintf("/api/v%d/users", apiVersion), apis.Delete)
-		secured.GET(fmt.Sprintf("/api/v%d/devices/:deviceId/group/:groupUrl", apiVersion), apis.GetGroupInfo)
+		secured.GET(fmt.Sprintf("/api/v%d/group/info", apiVersion), apis.GetGroupInfo)
+		secured.GET(fmt.Sprintf("/api/v%d/info", apiVersion), apis.GetInfo)
 	}
 
 	tlsCert := cfg.Server.Tls.Crt

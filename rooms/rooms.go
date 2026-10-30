@@ -162,3 +162,70 @@ func GetBridgedId(client *mautrix.Client, bridgedId string) (string, error) {
 	}
 	return *roomId, nil
 }
+
+type RoomJoined struct {
+	RoomId  string
+	Name    string
+	Topic   string
+	Members map[id.UserID]mautrix.JoinedMember
+}
+
+type RoomInfo struct {
+	Rooms []RoomJoined
+}
+
+func GetRoomMembers(
+	client *mautrix.Client,
+	roomId *id.RoomID,
+) (map[id.UserID]mautrix.JoinedMember, error) {
+	ctx := context.Background()
+	members, err := client.JoinedMembers(ctx, *roomId)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return members.Joined, nil
+}
+
+func GetSumInfo(client *mautrix.Client) (*RoomInfo, error) {
+	ctx := context.Background()
+	rooms, err := client.JoinedRooms(ctx)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var roomInfo []RoomJoined
+	for _, id := range rooms.JoinedRooms {
+		members, err := client.JoinedMembers(ctx, id)
+		if err != nil {
+			slog.Error(err.Error())
+			continue
+		}
+
+		name, err := GetRoomName(client, &id)
+		if err != nil {
+			slog.Error(err.Error())
+			continue
+		}
+
+		topic, err := GetRoomTopic(client, &id)
+		if err != nil {
+			slog.Error(err.Error())
+			continue
+		}
+
+		roomInfo = append(roomInfo, RoomJoined{
+			Name:    name,
+			Topic:   topic,
+			RoomId:  id.String(),
+			Members: members.Joined,
+		})
+	}
+
+	return &RoomInfo{Rooms: roomInfo}, nil
+}

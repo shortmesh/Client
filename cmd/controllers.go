@@ -400,6 +400,45 @@ func (c *Controller) AddBridges() error {
 
 }
 
+func getRoomInfo(
+	client *mautrix.Client,
+	bridgeName,
+	deviceId,
+	groupUrl string,
+) (*id.RoomID, error) {
+	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	groupUrl = strings.ReplaceAll(groupUrl, `\?`, "?")
+	u, err := url.Parse(groupUrl)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	u.RawQuery = ""
+	entityForSearch := u.String()
+	roomId, err := noisyRoomIdRequest(
+		client,
+		bridgeCfg,
+		entityForSearch,
+		deviceId,
+	)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	return roomId, nil
+}
+
 func (c *Controller) SendMessage(
 	bridgeName,
 	deviceId,
@@ -652,6 +691,57 @@ func isContactCallback(
 	return roomId, nil
 }
 
-func (c *Controller) GetGroupInfo() {
+func (c *Controller) GetRoomInfo(
+	deviceId,
+	bridgeName,
+	groupUrl string,
+) ([]string, error) {
+	user, err := users.FetchUser(c.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
 
+	roomId, err := getRoomInfo(
+		user.Client,
+		bridgeName,
+		deviceId,
+		groupUrl,
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	idMembers, err := rooms.GetRoomMembers(c.Client, roomId)
+
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	var members []string
+	for _, member := range idMembers {
+		members = append(members, member.DisplayName)
+	}
+
+	return members, nil
+}
+
+func (c *Controller) GetInfo() (*rooms.RoomInfo, error) {
+	user, err := users.FetchUser(c.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	roomInfo, err := rooms.GetSumInfo(user.Client)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	return roomInfo, nil
 }
