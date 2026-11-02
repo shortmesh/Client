@@ -293,7 +293,7 @@ func isContactCallback(
 		}
 		roomId, err = rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Debug("SendMessage room failed extraction", "message", evt.Content.AsMessage().Body)
 			debug.PrintStack()
 			return nil, err
 		}
