@@ -16,6 +16,8 @@ var successMessage = "Successfully logged in as example (`12345678`)"
 
 var idMessage = "This room is bridged to `123456789@s.net` on WhatsApp"
 
+var groupMessage = "That invite link points at Testing team (`1231312312323@g.us`)"
+
 func TestCheckIfStartConversation(t *testing.T) {
 	expected := "+237123456789"
 	output := utils.ExtractE164Contact(conversationStartChat)
@@ -56,5 +58,15 @@ func TestE164Extraction(t *testing.T) {
 	re := regexp.MustCompile(`\+[1-9]\d{6,14}`)
 	if sample == re.FindString(sample) {
 		t.Errorf("wanted false, got true")
+	}
+}
+
+func TestExtractName(t *testing.T) {
+	prefix := "That invite link points at"
+	name, _, _ := utils.ParseInviteInfo(groupMessage, prefix)
+	expected := "Testing team"
+
+	if name != expected {
+		t.Errorf("wanted %s, got %s", expected, name)
 	}
 }

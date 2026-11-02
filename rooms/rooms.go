@@ -113,6 +113,28 @@ func SaveBridgedId(client *mautrix.Client, bridgedId, roomId, bridgeName string)
 	return nil
 }
 
+func UpdateBridgeId(client *mautrix.Client, roomId, bridgedId, bridgeName string) error {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = roomDb.UpdateRoomId(roomId, bridgedId, bridgeName)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+}
+
 func Find(client *mautrix.Client, roomId string) (bool, error) {
 	roomDb := RoomDB{
 		Username: client.UserID.String(),
@@ -139,6 +161,7 @@ func Find(client *mautrix.Client, roomId string) (bool, error) {
 }
 
 func GetBridgedId(client *mautrix.Client, bridgedId string) (string, error) {
+	slog.Debug("Rooms getting bridgedId", "bridgeId", bridgedId)
 	roomDb := RoomDB{
 		Username: client.UserID.String(),
 		Filepath: "db/" + client.UserID.String() + ".db",
@@ -161,6 +184,55 @@ func GetBridgedId(client *mautrix.Client, bridgedId string) (string, error) {
 		return "", nil
 	}
 	return *roomId, nil
+}
+
+func GetAllRooms(client *mautrix.Client) ([]Room, error) {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return nil, err
+	}
+
+	rooms, err := roomDb.GetAllRooms()
+	if err != nil {
+		if err != sql.ErrNoRows {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		return nil, nil
+	}
+	return rooms, nil
+
+}
+
+func DeleteBridgeId(client *mautrix.Client, bridgeId string) error {
+	roomDb := RoomDB{
+		Username: client.UserID.String(),
+		Filepath: "db/" + client.UserID.String() + ".db",
+	}
+
+	err := roomDb.Init()
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+
+	err = roomDb.DeleteRoomsByBridgeId(bridgeId)
+	if err != nil {
+		slog.Error(err.Error())
+		debug.PrintStack()
+		return err
+	}
+	return nil
+
 }
 
 type RoomJoined struct {

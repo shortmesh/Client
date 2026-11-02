@@ -4,6 +4,7 @@ import (
 	// 	"context"
 	// 	"fmt"
 
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/shortmesh/core/bridges"
@@ -571,6 +573,69 @@ func createTmpFile(fileExtension, fileContent string) (*string, error) {
 	return &relativePath, nil
 }
 
+func verifyGroupRoomValidity(
+	client *mautrix.Client,
+	roomId *id.RoomID,
+	bridgeName,
+	groupUrl,
+	groupName string,
+) (*id.RoomID, error) {
+	ctx := context.Background()
+	_, err := client.JoinedMembers(ctx, *roomId)
+	if err != nil {
+		slog.Error(err.Error())
+
+		// something went out of sync
+		resp, err := client.JoinedRooms(ctx)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, err
+		}
+		// allRooms, err := rooms.GetAllRooms(client)
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// 	debug.PrintStack()
+		// 	return nil, err
+		// }
+		slog.Debug("Reviewing rooms", "#", len(resp.JoinedRooms))
+		for _, room := range resp.JoinedRooms {
+			name, err := rooms.GetRoomName(client, &room)
+			if err != nil {
+				slog.Error(err.Error())
+				continue
+			}
+			name = strings.TrimRightFunc(name, unicode.IsSpace)
+			if name == "" {
+				continue
+			}
+			if name == groupName {
+				slog.Debug("Attempting repair", "name", groupName, "former", roomId, "current", room)
+				err = rooms.DeleteBridgeId(client, groupUrl)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return nil, err
+				}
+				err = rooms.UpdateBridgeId(
+					client,
+					room.String(),
+					groupUrl,
+					bridgeName,
+				)
+				if err != nil {
+					slog.Error(err.Error())
+					debug.PrintStack()
+					return nil, err
+				}
+
+				return &room, nil
+			}
+		}
+	}
+	return roomId, nil
+}
+
 func noisyRoomIdRequest(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
@@ -621,7 +686,7 @@ func noisyRoomIdRequest(
 				syncers.UnRegisterSyncMessageListener(callbackEventId)
 				wg.Done()
 			}()
-			_roomId, err := isContactCallback(client, evt, &receiver, isUrl)
+			_roomId, err := isContactCallback(client, evt, &receiver, isUrl, bridgeCfg.Name)
 			if err != nil {
 				slog.Error(err.Error())
 				return err
@@ -647,15 +712,36 @@ func isContactCallback(
 	evt *event.Event,
 	receiver *string,
 	isUrl bool,
+	bridgeName string,
 ) (*id.RoomID, error) {
 	var roomId *id.RoomID
 	if isUrl {
 		content := evt.Content.AsMessage().Body
-		resolvedUrl, err := utils.ExtractBracketContent(content)
-		if err != nil {
-			slog.Error(err.Error())
-			debug.PrintStack()
-			return nil, err
+		// TODO: remove this
+		var resolvedUrl string
+		var groupName string
+
+		if bridgeName == "wa" {
+			prefix := "That invite link points at"
+			gn, ru, err := utils.ParseInviteInfo(
+				content,
+				prefix,
+			)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return nil, err
+			}
+			groupName = gn
+			resolvedUrl = ru
+		} else {
+			ru, err := utils.ExtractBracketContent(content)
+			if err != nil {
+				slog.Error(err.Error())
+				debug.PrintStack()
+				return nil, err
+			}
+			resolvedUrl = ru
 		}
 
 		resolvedUrl = strings.ReplaceAll(resolvedUrl, "`", "")
@@ -666,8 +752,24 @@ func isContactCallback(
 			return nil, err
 		}
 		if roomIdStr != "" {
-			newRoomId := id.RoomID(roomIdStr)
-			roomId = &newRoomId
+			tmpRoomId := id.RoomID(roomIdStr)
+			// TODO: remove this
+			if bridgeName == "wa" {
+				newRoomId, err := verifyGroupRoomValidity(
+					client,
+					&tmpRoomId,
+					bridgeName,
+					resolvedUrl,
+					groupName,
+				)
+				if err != nil {
+					slog.Error(err.Error())
+					return nil, err
+				}
+				roomId = newRoomId
+			} else {
+				roomId = &tmpRoomId
+			}
 		}
 	} else {
 		contactUserIds := evt.Content.AsMessage().Mentions.UserIDs

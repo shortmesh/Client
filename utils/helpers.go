@@ -212,3 +212,33 @@ func ExtractTemplateValue(template, input string) string {
 
 	return "" // Returns blank if no match
 }
+
+func ParseInviteInfo(input, prefix string) (string, string, error) {
+	// 1. Ensure the input starts with the specified prefix
+	if !strings.HasPrefix(input, prefix) {
+		return "", "", fmt.Errorf("input does not start with expected prefix: %q", prefix)
+	}
+
+	// 2. Strip the prefix from the beginning
+	remainder := strings.TrimSpace(input[len(prefix):])
+
+	// 3. Find the position of the JID marker " (`"
+	startIdx := strings.Index(remainder, " (`")
+	if startIdx == -1 {
+		return "", "", fmt.Errorf("invalid format: missing JID start marker")
+	}
+
+	// 4. Everything between the prefix and the marker is the group name
+	groupName := strings.TrimSpace(remainder[:startIdx])
+
+	// 5. Extract the JID between the backticks
+	idRemainder := remainder[startIdx+3:]
+	endIdx := strings.Index(idRemainder, "`)")
+	if endIdx == -1 {
+		return "", "", fmt.Errorf("invalid format: missing closing JID marker")
+	}
+
+	groupID := idRemainder[:endIdx]
+
+	return groupName, groupID, nil
+}
