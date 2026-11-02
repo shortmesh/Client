@@ -167,8 +167,6 @@ func SyncCallback(client *mautrix.Client, evt *event.Event) error {
 	bindingKey := RMQBindingKeys{}
 	defaults.Set(&bindingKey)
 
-	slog.Debug("Contact message", "payload", payload)
-
 	queueName := client.UserID.Localpart() + "_incoming_messages"
 	err = rabbitmq.Sender(
 		client,

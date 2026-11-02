@@ -42,6 +42,6 @@ func Sender(client *mautrix.Client, message string, exchange, routingKey, queueN
 		return err
 	}
 
-	slog.Debug("RMQ sent", "message", message)
+	slog.Debug("RMQ sent...")
 	return nil
 }
