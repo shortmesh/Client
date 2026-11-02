@@ -242,3 +242,20 @@ func ParseInviteInfo(input, prefix string) (string, string, error) {
 
 	return groupName, groupID, nil
 }
+
+// ExtractMatrixRoomID searches for a valid matrix.to URL in the input text
+// (even if wrapped in parentheses or punctuation) and returns the extracted room ID.
+func ExtractMatrixRoomID(input string) (string, error) {
+	// Regex pattern breakdown:
+	// https?://matrix\.to/#/  - Matches the base matrix.to URL
+	// (![^/\s\)]+)            - Captures the room ID starting with '!'
+	//                           up until a slash, whitespace, or closing parenthesis
+	re := regexp.MustCompile(`https?://matrix\.to/#/(![^/\s\)]+)`)
+
+	matches := re.FindStringSubmatch(input)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("no valid matrix.to room ID found in string")
+	}
+
+	return matches[1], nil
+}

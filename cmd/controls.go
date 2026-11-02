@@ -150,7 +150,8 @@ func noisyRoomIdRequest(
 	client *mautrix.Client,
 	bridgeCfg *configs.BridgeConfig,
 	receiver,
-	deviceId string,
+	deviceId,
+	homeserver string,
 ) (*id.RoomID, error) {
 	var roomId *id.RoomID
 
@@ -195,7 +196,7 @@ func noisyRoomIdRequest(
 				syncers.UnRegisterSyncMessageListener(callbackEventId)
 				wg.Done()
 			}()
-			_roomId, err := isContactCallback(client, evt, &receiver, isUrl, bridgeCfg.Name)
+			_roomId, err := isContactCallback(client, evt, &receiver, isUrl, bridgeCfg.Name, homeserver)
 			if err != nil {
 				slog.Error("Message cannot be sent", "error", err.Error())
 				return err
@@ -221,7 +222,8 @@ func isContactCallback(
 	evt *event.Event,
 	receiver *string,
 	isUrl bool,
-	bridgeName string,
+	bridgeName,
+	homeserver string,
 ) (*id.RoomID, error) {
 	var roomId *id.RoomID
 	if isUrl {
@@ -293,9 +295,14 @@ func isContactCallback(
 		}
 		roomId, err = rooms.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
 		if err != nil {
-			slog.Debug("SendMessage room failed extraction", "message", evt.Content.AsMessage().Body)
-			debug.PrintStack()
-			return nil, err
+			tmpRoomId, err := utils.ExtractMatrixRoomID(evt.Content.AsMessage().Body)
+			if err != nil {
+				slog.Debug("SendMessage room failed extraction", "message", evt.Content.AsMessage().Body)
+				return nil, err
+			}
+
+			newRoomId := id.RoomID(fmt.Sprintf("%s:%s", tmpRoomId, homeserver))
+			roomId = &newRoomId
 		}
 	}
 
@@ -466,11 +473,17 @@ func getRoomInfo(
 		entityForSearch = u.String()
 	}
 
+	cfg, err := configs.GetConf()
+	if err != nil {
+		debug.PrintStack()
+		return nil, nil, err
+	}
 	roomId, err := noisyRoomIdRequest(
 		client,
 		bridgeCfg,
 		entityForSearch,
 		deviceId,
+		cfg.HomeServerDomain,
 	)
 
 	if err != nil {
