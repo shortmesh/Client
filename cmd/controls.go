@@ -283,7 +283,7 @@ func isContactCallback(
 	} else {
 		contactUserIds := evt.Content.AsMessage().Mentions.UserIDs
 		if len(contactUserIds) != 1 {
-			slog.Debug("[+] SendMessage response received - false", "#ids", len(contactUserIds))
+			slog.Debug("SendMessage response received", "#ids", len(contactUserIds), "message", evt.Content.AsMessage().Body)
 			return nil, fmt.Errorf("Not 1 contact found, found %d", len(contactUserIds))
 		}
 		err := contacts.CreateContact(client, *receiver, &contactUserIds[0])
