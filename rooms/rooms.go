@@ -75,8 +75,7 @@ func GetRoomName(client *mautrix.Client, roomId *id.RoomID) (string, error) {
 	var nameContent event.RoomNameEventContent
 	err := client.StateEvent(context.Background(), *roomId, event.StateRoomName, "", &nameContent)
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
+		slog.Error("Failed getting room name", "roomId", roomId, "error", err.Error())
 		return "", err
 	}
 	return nameContent.Name, nil

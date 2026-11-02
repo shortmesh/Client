@@ -602,13 +602,13 @@ func verifyGroupRoomValidity(
 		for _, room := range resp.JoinedRooms {
 			name, err := rooms.GetRoomName(client, &room)
 			if err != nil {
-				slog.Error(err.Error())
 				continue
 			}
 			name = strings.TrimRightFunc(name, unicode.IsSpace)
 			if name == "" {
 				continue
 			}
+			slog.Debug("Checking room", "name", groupName, "former", roomId, "current", room)
 			if name == groupName {
 				slog.Debug("Attempting repair", "name", groupName, "former", roomId, "current", room)
 				err = rooms.DeleteBridgeId(client, groupUrl)
