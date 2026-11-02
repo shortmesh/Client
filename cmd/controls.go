@@ -139,8 +139,9 @@ func verifyGroupRoomValidity(
 
 				return &room, nil
 			}
-			slog.Debug("Reviewing failed", "#expecting", groupName)
 		}
+		slog.Debug("Reviewing failed", "#expecting", groupName)
+		return nil, fmt.Errorf("Failed to validate room: %s - (%s/%s)", roomId, groupName, groupUrl)
 	}
 	return roomId, nil
 }
@@ -190,14 +191,13 @@ func noisyRoomIdRequest(
 		IgnoreBot: ignoreBotMessage,
 		BindRoom:  mngRoom,
 		Callback: func(evt *event.Event, user *users.Users) error {
-			slog.Debug("[+] SendMessage response received", "msg", evt.Content.AsMessage().Body)
 			defer func() {
 				syncers.UnRegisterSyncMessageListener(callbackEventId)
 				wg.Done()
 			}()
 			_roomId, err := isContactCallback(client, evt, &receiver, isUrl, bridgeCfg.Name)
 			if err != nil {
-				slog.Error(err.Error())
+				slog.Error("Message cannot be sent", "error", err.Error())
 				return err
 			}
 			roomId = _roomId
@@ -474,5 +474,5 @@ func getRoomInfo(
 		return nil, nil, err
 	}
 
-	return roomId, nil, nil
+	return roomId, bridgeCfg, nil
 }
