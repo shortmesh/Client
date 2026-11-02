@@ -516,7 +516,6 @@ func (c *Controller) SendMessage(
 		)
 		if err != nil {
 			slog.Error(err.Error())
-			debug.PrintStack()
 			return nil, err
 		}
 		return evt, nil
