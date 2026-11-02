@@ -29,8 +29,7 @@ func GetRoomTopic(client *mautrix.Client, roomId *id.RoomID) (string, error) {
 	var topicContent event.TopicEventContent
 	err := client.StateEvent(context.Background(), *roomId, event.StateTopic, "", &topicContent)
 	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
+		slog.Error("Room failed to get topic", "roomId", roomId, "error", err.Error())
 		return "", err
 	}
 	return topicContent.Topic, nil
