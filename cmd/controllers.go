@@ -598,7 +598,7 @@ func verifyGroupRoomValidity(
 		// 	debug.PrintStack()
 		// 	return nil, err
 		// }
-		slog.Debug("Reviewing rooms", "#", len(resp.JoinedRooms))
+		slog.Debug("Reviewing rooms", "#", len(resp.JoinedRooms), "expecting", groupName)
 		for _, room := range resp.JoinedRooms {
 			name, err := rooms.GetRoomName(client, &room)
 			if err != nil {
@@ -608,7 +608,7 @@ func verifyGroupRoomValidity(
 			if name == "" {
 				continue
 			}
-			slog.Debug("Checking room", "name", groupName, "former", roomId, "current", room)
+			slog.Debug("Checking room", "name", name, "former", roomId, "current", room)
 			if name == groupName {
 				slog.Debug("Attempting repair", "name", groupName, "former", roomId, "current", room)
 				err = rooms.DeleteBridgeId(client, groupUrl)
