@@ -442,7 +442,8 @@ func getRoomInfo(
 	client *mautrix.Client,
 	bridgeName,
 	deviceId,
-	groupUrl string,
+	groupUrl,
+	receiver string,
 ) (*id.RoomID, *configs.BridgeConfig, error) {
 	bridgeCfg, err := configs.GetBridgeConfig(bridgeName)
 	if err != nil && err != sql.ErrNoRows {
@@ -451,16 +452,20 @@ func getRoomInfo(
 		return nil, nil, err
 	}
 
-	groupUrl = strings.ReplaceAll(groupUrl, `\?`, "?")
-	u, err := url.Parse(groupUrl)
-	if err != nil {
-		slog.Error(err.Error())
-		debug.PrintStack()
-		return nil, nil, err
+	entityForSearch := receiver
+	if groupUrl != "" {
+		groupUrl = strings.ReplaceAll(groupUrl, `\?`, "?")
+		u, err := url.Parse(groupUrl)
+		if err != nil {
+			slog.Error(err.Error())
+			debug.PrintStack()
+			return nil, nil, err
+		}
+
+		u.RawQuery = ""
+		entityForSearch = u.String()
 	}
 
-	u.RawQuery = ""
-	entityForSearch := u.String()
 	roomId, err := noisyRoomIdRequest(
 		client,
 		bridgeCfg,

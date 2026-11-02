@@ -274,6 +274,7 @@ func (c *Controller) SendMessage(
 		bridgeName,
 		deviceId,
 		groupUrl,
+		receiver,
 	)
 
 	if err != nil {
@@ -334,6 +335,7 @@ func (c *Controller) GetRoomInfo(
 		bridgeName,
 		deviceId,
 		groupUrl,
+		"",
 	)
 	if err != nil {
 		slog.Error(err.Error())
