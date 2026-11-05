@@ -195,8 +195,8 @@ func processIncomingBotMessage(client *mautrix.Client, evt *event.Event, bridgeC
 	}
 	if id != "" {
 		slog.Debug("Bot message ID found", "id", id)
-		// err = rooms.SaveBridgedId(client, id, evt.RoomID.String(), bridgeCfg.Name)
-		err = rooms.UpdateBridgeId(client, id, evt.RoomID.String(), bridgeCfg.Name)
+		err = rooms.SaveBridgedId(client, id, evt.RoomID.String(), bridgeCfg.Name)
+		// err = rooms.UpdateBridgeId(client, id, evt.RoomID.String(), bridgeCfg.Name)
 		if err != nil {
 			slog.Error(err.Error())
 			return err
